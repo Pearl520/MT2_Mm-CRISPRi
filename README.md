@@ -31,5 +31,9 @@
 ### "230829_main6_Obox_analyses.Rmd"
 
   R notebook for minor ZGA, major ZGA, maternal gne, and Obox-related analyses
+
+### "utils.R"
+
+  R scritp for commonly used R functions
   
 
