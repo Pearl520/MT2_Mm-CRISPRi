@@ -1,0 +1,424 @@
+---
+title: "230829 DEGs_relations_to_dCas9_ChIP"
+output: html_notebook
+---
+
+## Nearest gene identification
+```{bash}
+#!/usr/bin/bash 
+module load bedtools/2.27.0
+
+MT2="MT2Mm_MT2CMm"
+MT2Mm="MT2Mm"
+MT2CMm="MT2CMm"
+offtarget="offtarget"
+
+TE="/data/ZYChenlab/Zhiyuan/genomes_annotations/mm10/annotations/mm10_rmsk_TE.bed"
+GTF="/data/ZYChenlab/Zhiyuan/genomes_annotations/mm10/annotations/gencode.vM25.annotation.gtf"
+
+#retrieve mm10 MT2 records
+grep MT2_Mm $TE > mm10_${MT2Mm}.bed
+grep MT2C_Mm $TE > mm10_${MT2CMm}.bed
+cat mm10_${MT2Mm}.bed mm10_${MT2CMm}.bed > mm10_${MT2}.bed
+
+#identify which MT2 were bound by dCas9
+bedtools intersect -a mm10_${MT2Mm}.bed -b ./R_output/230817_dCas9_${MT2Mm}.bed -wa > 230817_${MT2Mm}_boundbyCas9.bed
+bedtools intersect -a mm10_${MT2CMm}.bed -b ./R_output/230817_dCas9_${MT2CMm}.bed -wa > 230817_${MT2CMm}_boundbyCas9.bed
+bedtools intersect -a mm10_${MT2}.bed -b ./R_output/230817_dCas9_${MT2}.bed -wa > 230817_${MT2}_boundbyCas9.bed
+
+sort -k1,1 -k2,2n 230817_${MT2Mm}_boundbyCas9.bed > 230817_${MT2Mm}_boundbyCas9_sorted.bed
+sort -k1,1 -k2,2n 230817_${MT2CMm}_boundbyCas9.bed > 230817_${MT2CMm}_boundbyCas9_sorted.bed
+sort -k1,1 -k2,2n 230817_${MT2}_boundbyCas9.bed > 230817_${MT2}_boundbyCas9_sorted.bed
+sort -k1,1 -k2,2n ./R_output/230817_dCas9_${offtarget}.bed > 230817_dCas9_${offtarget}_sorted.bed
+
+awk 'OFS="\t" {if ($3=="gene") {print $1,$4-1,$5,$10,$14,$7}}' $GTF | tr -d '";' > mm10_gene.bed
+sort -k1,1 -k2,2n mm10_gene.bed > mm10_gene_sorted.bed
+
+bedtools closest -a mm10_gene_sorted.bed -b 230817_${MT2Mm}_boundbyCas9_sorted.bed -D "b" | uniq > ./R_input/ChIP_seq/230817_${MT2Mm}_nearest_ChIPseqPeak2Gene.txt
+bedtools closest -a mm10_gene_sorted.bed -b 230817_${MT2CMm}_boundbyCas9_sorted.bed -D "b" | uniq > ./R_input/ChIP_seq/230817_${MT2CMm}_nearest_ChIPseqPeak2Gene.txt
+bedtools closest -a mm10_gene_sorted.bed -b 230817_${MT2}_boundbyCas9_sorted.bed -D "b" | uniq > ./R_input/ChIP_seq/230817_${MT2}_nearest_ChIPseqPeak2Gene.txt
+bedtools closest -a mm10_gene_sorted.bed -b 230817_dCas9_${offtarget}_sorted.bed -D "b" | uniq > ./R_input/ChIP_seq/230817_${offtarget}_nearest_ChIPseqPeak2Gene.txt
+```
+
+## input DEG data
+```{r}
+e2c_RNA <- read.table("./R_output/230815_MT2_Mmi_e2C_genes_DE_analyses.csv", sep =",", header = T)
+c2_RNA <- read.table("./R_output/230815_MT2_Mmi_2C_genes_DE_analyses.csv", sep = ",", header = T)
+
+nrow(e2c_RNA[which(e2c_RNA$ec2_DESeq_rpkm.group == "down-regulated"),]) #206
+nrow(c2_RNA[which(c2_RNA$c2_DESeq_rpkm.group == "down-regulated"),]) #471
+```
+
+## TE centric analyses
+```{r}
+source("./utils.R")
+suppressMessages(library(ggplot2))
+suppressMessages(library(cowplot))
+suppressMessages(library(tidyr))
+
+MT2Mm_distance <- read.table("./R_input/ChIP_seq/230817_MT2Mm_nearest_ChIPseqPeak2Gene.txt",
+                             header = F, sep = "\t")
+MT2CMm_distance <- read.table("./R_input/ChIP_seq/230817_MT2CMm_nearest_ChIPseqPeak2Gene.txt",
+                              header = F, sep = "\t")
+MT2_distance <- read.table("./R_input/ChIP_seq/230817_MT2Mm_MT2CMm_nearest_ChIPseqPeak2Gene.txt",
+                           header = F, sep = "\t")
+offtarget_distance <- read.table("./R_input/ChIP_seq/230817_offtarget_nearest_ChIPseqPeak2Gene.txt")
+
+nrow(MT2Mm_distance) #55721
+nrow(MT2CMm_distance) #55454
+nrow(MT2_distance) #55821
+nrow(offtarget_distance) #55408
+colnames <- c("gene_chr", "gene_start", "gene_end", 
+                                   "id", "name", "gene_strand", 
+                                   "peak_chr", "peak_start", "peak_end", 
+                                   "peak_name", "peak_score", "peak_strand",
+                                   "distance") 
+
+colnames(MT2Mm_distance) <- colnames
+colnames(MT2CMm_distance) <- colnames
+colnames(MT2_distance) <- colnames
+colnames(offtarget_distance) <- colnames
+
+#for genes with multiple peaks in the gene bodies, randomly pick one
+MT2Mm_distance <- MT2Mm_distance[!duplicated(MT2Mm_distance$id),]
+MT2CMm_distance <- MT2CMm_distance[!duplicated(MT2CMm_distance$id),]
+MT2_distance <- MT2_distance[!duplicated(MT2_distance$id),]
+offtarget_distance <- offtarget_distance[!duplicated(offtarget_distance$id),]
+
+nrow(MT2Mm_distance) #55401
+nrow(MT2CMm_distance) #55401
+nrow(MT2_distance) #55401
+nrow(offtarget_distance) #55401
+
+#classify gene repeat relative orientation
+classify_repeat_gene_pair <- function(df){
+  df$group <- rep("others", nrow(df))
+  for(i in 1:nrow(df)){
+    if(df$gene_strand[i] != df$peak_strand[i]){ #repeat and gene different orientation
+      if(df$distance[i] >= 0){ #repeat is down-stream of a gene or intragenic 
+        df$group[i] <- "anti_down/intragenic"
+      } else {
+        df$group[i] <- "anti_up"
+      }
+    } else { #repeat and gene the same orientation
+      if(df$distance[i] >=0){ #repeat is upstream of a gene or intragenic
+        df$group[i] <- "sense_up/intragenic"
+      } else {
+        df$group[i] <- "sense_down"
+      }
+    }
+  }
+  return(df$group)
+}
+
+MT2Mm_distance$group <- classify_repeat_gene_pair(MT2Mm_distance)
+MT2Mm_distance$bin <- classify_distance(MT2Mm_distance$distance, ignore_direction = F)
+
+MT2CMm_distance$group <- classify_repeat_gene_pair(MT2CMm_distance)
+MT2CMm_distance$bin <- classify_distance(MT2CMm_distance$distance, ignore_direction = F)
+
+MT2_distance$group <- classify_repeat_gene_pair(MT2_distance)
+MT2_distance$bin <- classify_distance(MT2_distance$distance, ignore_direction = F)
+
+offtarget_distance$bin <- classify_distance(offtarget_distance$distance, ignore_direction = F)
+
+#merge with RNAseq data for expression fold change analyses
+df4boxplot_MT2Mm_l2c <- merge(MT2Mm_distance,
+                              c2_RNA[, c("id", "log2FoldChange")],
+                              by = "id")
+df4boxplot_MT2Mm_e2c <- merge(MT2Mm_distance,
+                              e2c_RNA[, c("id", "log2FoldChange")],
+                              by = "id")
+df4boxplot_MT2CMm_l2c <- merge(MT2CMm_distance,
+                           c2_RNA[, c("id", "log2FoldChange")],
+                           by = "id")
+df4boxplot_MT2CMm_e2c <- merge(MT2CMm_distance,
+                               e2c_RNA[, c("id", "log2FoldChange")],
+                               by = "id")
+df4boxplot_offtarget_l2c <- merge(offtarget_distance,
+                           c2_RNA[, c("id", "log2FoldChange")],
+                           by = "id")
+df4boxplot_offtarget_e2c <- merge(offtarget_distance,
+                                  e2c_RNA[, c("id", "log2FoldChange")],
+                                  by = "id")
+df4boxplot_MT2_e2c <- merge(MT2_distance,
+                            e2c_RNA[, c("id", "log2FoldChange", "ec2_DESeq_rpkm.group")],
+                            by = "id")
+df4boxplot_MT2_l2c <- merge(MT2_distance,
+                            c2_RNA[, c("id", "log2FoldChange", "c2_DESeq_rpkm.group")],
+                            by = "id")
+
+#First check whether dCas9-bound non-MT2Mm/MT2CMm peaks show strong gene reduction
+# pdf("./figures/230823_offtarget_ChIPpeaks_centric_expression_boxplot.pdf", 
+#     width = 5, height = 5)
+# ggplot(df4boxplot_offtarget_l2c, aes(x = bin, y = log2FoldChange)) +
+#   geom_boxplot(outlier.shape = NA) + theme_cowplot(16) +
+#   ylim(-10,5) + ylab("Log2FC (MT2_Mmi / CTRi") +
+#   xlab("Distance from off-targets (ChIPseq peaks)") +
+#   theme(axis.text.x = element_text(angle = 30, vjust = 0.9, hjust=0.9)) +
+#   ggtitle("CRISPRi gene expression\n(off-target ChIPseq peaks), (L2C)") +
+#   geom_hline(yintercept= 0, linetype="dashed", color = "red") +
+#   scale_x_discrete(limits = c("0-10kb", "10-30kb", 
+#                               "30-50kb", ">50kb")) 
+# ggplot(df4boxplot_offtarget_e2c, aes(x = bin, y = log2FoldChange)) +
+#   geom_boxplot(outlier.shape = NA) + theme_cowplot(16) +
+#   ylim(-10,5) + ylab("Log2FC (MT2_Mmi / CTRi") +
+#   xlab("Distance from off-targets (ChIPseq peaks)") +
+#   theme(axis.text.x = element_text(angle = 30, vjust = 0.9, hjust=0.9)) +
+#   ggtitle("CRISPRi gene expression\n(off-target ChIPseq peaks), (E2C)") +
+#   geom_hline(yintercept= 0, linetype="dashed", color = "red") +
+#   scale_x_discrete(limits = c("0-10kb", "10-30kb", 
+#                               "30-50kb", ">50kb")) 
+# dev.off()
+# 
+# #Check whether MT2Mm orientation/positions affect gene expression changes
+# pdf("./figures/230823_MT2Mm_ChIPpeaks_centric_expression_boxplot.pdf")
+# ggplot(df4boxplot_MT2Mm_e2c, aes(x = bin, y = log2FoldChange)) +
+#   geom_boxplot(outlier.shape = NA) + theme_cowplot(16) +
+#   facet_grid(cols = vars(group)) +
+#   ylim(-10,5) + ylab("Log2FC (MT2_Mmi / CTRi") +
+#   xlab("Distance from MT2_Mm (ChIPseq peaks)") +
+#   theme(axis.text.x = element_text(angle = 30, vjust = 0.9, hjust=0.9)) +
+#   ggtitle("CRISPRi gene expression\n(MT2_Mm ChIPseq peaks)(E2C)") +
+#   geom_hline(yintercept= 0, linetype="dashed", color = "red") +
+#   scale_x_discrete(limits = c("0-10kb", "10-30kb", 
+#                               "30-50kb", ">50kb")) 
+# ggplot(df4boxplot_MT2Mm_l2c, aes(x = bin, y = log2FoldChange)) +
+#   geom_boxplot(outlier.shape = NA) + theme_cowplot(16) +
+#   facet_grid(cols = vars(group)) +
+#   ylim(-10,5) + ylab("Log2FC (MT2_Mmi / CTRi") +
+#   xlab("Distance from MT2_Mm (ChIPseq peaks)") +
+#   theme(axis.text.x = element_text(angle = 30, vjust = 0.9, hjust=0.9)) +
+#   ggtitle("CRISPRi gene expression\n(MT2_Mm ChIPseq peaks)(L2C") +
+#   geom_hline(yintercept= 0, linetype="dashed", color = "red") +
+#   scale_x_discrete(limits = c("0-10kb", "10-30kb", 
+#                               "30-50kb", ">50kb"))
+# dev.off()
+# 
+# #Check whether MT2CMm orientation/positions affect gene expression changes
+# pdf("./figures/230823_MT2CMm_ChIPpeaks_centric_expression_boxplot.pdf")
+# ggplot(df4boxplot_MT2CMm_e2c, aes(x = bin, y = log2FoldChange)) +
+#   geom_boxplot(outlier.shape = NA) + theme_cowplot(16) +
+#   facet_grid(cols = vars(group)) +
+#   ylim(-10,5) + ylab("Log2FC (MT2_Mmi / CTRi") +
+#   xlab("Distance from MT2C_Mm (ChIPseq peaks)") +
+#   theme(axis.text.x = element_text(angle = 30, vjust = 0.9, hjust=0.9)) +
+#   ggtitle("CRISPRi gene expression\n(MT2C_Mm ChIPseq peaks)(E2C)") +
+#   geom_hline(yintercept= 0, linetype="dashed", color = "red") +
+#   scale_x_discrete(limits = c("0-10kb", "10-30kb", 
+#                               "30-50kb", ">50kb")) 
+# ggplot(df4boxplot_MT2CMm_l2c, aes(x = bin, y = log2FoldChange)) +
+#   geom_boxplot(outlier.shape = NA) + theme_cowplot(16) +
+#   facet_grid(cols = vars(group)) +
+#   ylim(-10,5) + ylab("Log2FC (MT2_Mmi / CTRi") +
+#   xlab("Distance from MT2C_Mm (ChIPseq peaks)") +
+#   theme(axis.text.x = element_text(angle = 30, vjust = 0.9, hjust=0.9)) +
+#   ggtitle("CRISPRi gene expression\n(MT2C_Mm ChIPseq peaks)(L2C)") +
+#   geom_hline(yintercept= 0, linetype="dashed", color = "red") +
+#   scale_x_discrete(limits = c("0-10kb", "10-30kb", 
+#                               "30-50kb", ">50kb")) 
+# dev.off()
+# 
+# #Check whether MT2_Mm and MT2C_Mm orientation/positions affect gene expression changes
+# pdf("./figures/230823_MT2_ChIPpeaks_centric_expression_boxplot.pdf")
+# ggplot(df4boxplot_MT2_e2c, aes(x = bin, y = log2FoldChange)) +
+#   geom_boxplot(outlier.shape = NA) + theme_cowplot(16) +
+#   facet_grid(cols = vars(group)) +
+#   ylim(-10,5) + ylab("Log2FC (MT2_Mmi / CTRi") +
+#   xlab("Distance from MT2 (ChIPseq peaks)") +
+#   theme(axis.text.x = element_text(angle = 30, vjust = 0.9, hjust=0.9)) +
+#   ggtitle("CRISPRi gene expression\n(MT2 ChIPseq peaks)(E2C)") +
+#   geom_hline(yintercept= 0, linetype="dashed", color = "red") +
+#   scale_x_discrete(limits = c("0-10kb", "10-30kb", 
+#                               "30-50kb", ">50kb")) 
+# ggplot(df4boxplot_MT2_l2c, aes(x = bin, y = log2FoldChange)) +
+#   geom_boxplot(outlier.shape = NA) + theme_cowplot(16) +
+#   facet_grid(cols = vars(group)) +
+#   ylim(-10,5) + ylab("Log2FC (MT2_Mmi / CTRi") +
+#   xlab("Distance from MT2 (ChIPseq peaks)") +
+#   theme(axis.text.x = element_text(angle = 30, vjust = 0.9, hjust=0.9)) +
+#   ggtitle("CRISPRi gene expression\n(MT2 ChIPseq peaks)(L2C)") +
+#   geom_hline(yintercept= 0, linetype="dashed", color = "red") +
+#   scale_x_discrete(limits = c("0-10kb", "10-30kb", 
+#                               "30-50kb", ">50kb")) 
+# dev.off()
+```
+
+```{r}
+#Identify the long range limit where MT2Mm MT2CMm regulate genes
+pdf("./figures/230824_MT2Mm_ChIPpeaks_centric_expression_boxplot_noGroups.pdf")
+# ggplot(df4boxplot_MT2Mm_e2c, aes(x = bin, y = log2FoldChange)) +
+#   geom_boxplot(outlier.shape = NA) + theme_cowplot(16) +
+#   ylim(-3,3) + ylab("Log2FC (MT2_Mmi / CTRi") +
+#   xlab("Distance from MT2Mm (ChIPseq peaks)") +
+#   theme(axis.text.x = element_text(angle = 30, vjust = 0.9, hjust=0.9)) +
+#   ggtitle("CRISPRi gene expression\n(MT2Mm ChIPseq peaks)(E2C)") +
+#   geom_hline(yintercept= 0, linetype="dashed", color = "red") +
+#   scale_x_discrete(limits = c("< -50kb", "-30-50kb", "-10-30kb", "-0-10kb"
+#                               ,"0-10kb", "10-30kb", 
+#                               "30-50kb", ">50kb")) 
+ggplot(df4boxplot_MT2Mm_l2c, aes(x = bin, y = log2FoldChange)) +
+  geom_boxplot(outlier.shape = NA) + theme_cowplot(16) +
+  ylim(-10,10) + ylab("Log2FC (MT2_Mmi / CTRi") +
+  xlab("Distance from MT2Mm (ChIPseq peaks)") +
+  theme(axis.text.x = element_text(angle = 30, vjust = 0.9, hjust=0.9)) +
+  ggtitle("CRISPRi gene expression\n(MT2Mm ChIPseq peaks)(L2C)") +
+  geom_hline(yintercept= 0, linetype="dashed", color = "red") +
+  scale_x_discrete(limits = c("< -50kb", "-30-50kb", "-10-30kb", "-0-10kb"
+                              ,"0-10kb", "10-30kb", 
+                              "30-50kb", ">50kb")) 
+ggplot(df4boxplot_offtarget_l2c, aes(x = bin, y = log2FoldChange)) +
+  geom_boxplot(outlier.shape = NA) + theme_cowplot(16) +
+  ylim(-10,10) + ylab("Log2FC (MT2_Mmi / CTRi") +
+  xlab("Distance from off-targets (ChIPseq peaks)") +
+  theme(axis.text.x = element_text(angle = 30, vjust = 0.9, hjust=0.9)) +
+  ggtitle("CRISPRi gene expression\n(off-target ChIPseq peaks), (L2C)") +
+  geom_hline(yintercept= 0, linetype="dashed", color = "red") +
+  scale_x_discrete(limits = c("< -50kb", "-30-50kb", "-10-30kb", "-0-10kb"
+                              ,"0-10kb", "10-30kb", 
+                              "30-50kb", ">50kb")) 
+
+#get p-value here. 
+wilcox.test(df4boxplot_MT2Mm_l2c[which(df4boxplot_MT2Mm_l2c$bin == "0-10kb"), 
+                                 c("log2FoldChange")],
+            df4boxplot_MT2Mm_l2c[which(df4boxplot_MT2Mm_l2c$bin == ">50kb"),
+                                 c("log2FoldChange")],)$p.value
+wilcox.test(df4boxplot_MT2Mm_l2c[which(df4boxplot_MT2Mm_l2c$bin == "10-30kb"), 
+                                 c("log2FoldChange")],
+            df4boxplot_MT2Mm_l2c[which(df4boxplot_MT2Mm_l2c$bin == ">50kb"),
+                                 c("log2FoldChange")],)$p.value
+wilcox.test(df4boxplot_MT2Mm_l2c[which(df4boxplot_MT2Mm_l2c$bin == "30-50kb"), 
+                                 c("log2FoldChange")],
+            df4boxplot_MT2Mm_l2c[which(df4boxplot_MT2Mm_l2c$bin == ">50kb"),
+                                 c("log2FoldChange")],)$p.value
+wilcox.test(df4boxplot_MT2Mm_l2c[which(df4boxplot_MT2Mm_l2c$bin == "-0-10kb"), 
+                                 c("log2FoldChange")],
+            df4boxplot_MT2Mm_l2c[which(df4boxplot_MT2Mm_l2c$bin == "< -50kb"),
+                                 c("log2FoldChange")],)$p.value
+wilcox.test(df4boxplot_MT2Mm_l2c[which(df4boxplot_MT2Mm_l2c$bin == "-10-30kb"), 
+                                 c("log2FoldChange")],
+            df4boxplot_MT2Mm_l2c[which(df4boxplot_MT2Mm_l2c$bin == "< -50kb"),
+                                 c("log2FoldChange")],)$p.value
+wilcox.test(df4boxplot_MT2Mm_l2c[which(df4boxplot_MT2Mm_l2c$bin == "-30-50kb"), 
+                                 c("log2FoldChange")],
+            df4boxplot_MT2Mm_l2c[which(df4boxplot_MT2Mm_l2c$bin == "< -50kb"),
+                                 c("log2FoldChange")],)$p.value
+wilcox.test(df4boxplot_offtarget_l2c[which(df4boxplot_offtarget_l2c$bin == "0-10kb"), 
+                                 c("log2FoldChange")],
+            df4boxplot_offtarget_l2c[which(df4boxplot_offtarget_l2c$bin == ">50kb"),
+                                 c("log2FoldChange")],)$p.value
+wilcox.test(df4boxplot_offtarget_l2c[which(df4boxplot_offtarget_l2c$bin == "-0-10kb"), 
+                                 c("log2FoldChange")],
+            df4boxplot_offtarget_l2c[which(df4boxplot_offtarget_l2c$bin == "< -50kb"),
+                                 c("log2FoldChange")],)$p.value
+# ggplot(df4boxplot_offtarget_e2c, aes(x = bin, y = log2FoldChange)) +
+#   geom_boxplot(outlier.shape = NA) + theme_cowplot(16) +
+#   ylim(-3,3) + ylab("Log2FC (MT2_Mmi / CTRi") +
+#   xlab("Distance from off-targets (ChIPseq peaks)") +
+#   theme(axis.text.x = element_text(angle = 30, vjust = 0.9, hjust=0.9)) +
+#   ggtitle("CRISPRi gene expression\n(off-target ChIPseq peaks), (E2C)") +
+#   geom_hline(yintercept= 0, linetype="dashed", color = "red") +
+#   scale_x_discrete(limits = c("< -50kb", "-30-50kb", "-10-30kb", "-0-10kb"
+#                               ,"0-10kb", "10-30kb", 
+#                               "30-50kb", ">50kb")) 
+dev.off()
+
+```
+
+```{r}
+#identify genes with following criteria
+# 1) down-regulated
+# 2) distance < 30kb
+e2c_down <- df4boxplot_MT2_e2c[which(df4boxplot_MT2_e2c$ec2_DESeq_rpkm.group == "down-regulated"),]
+e2c_down_30kb <- e2c_down[which(e2c_down$bin %in% c("-0-10kb", "-10-30kb", "0-10kb",
+                                                    "10-30kb")),]
+table(e2c_down_30kb$group)
+
+l2c_down <- df4boxplot_MT2_l2c[which(df4boxplot_MT2_l2c$c2_DESeq_rpkm.group == "down-regulated"),]
+l2c_down_30kb <- l2c_down[which(l2c_down$bin %in% c("-0-10kb", "-10-30kb", "0-10kb",
+                                                    "10-30kb")),]
+table(l2c_down_30kb$group)
+
+df4Pie_e2c <- as.data.frame(table(e2c_down_30kb$group)) %>%
+              mutate(perc = `Freq` / sum(`Freq`)) %>% 
+              mutate(labels = scales::percent(perc))
+df4Pie_l2c <- as.data.frame(table(l2c_down_30kb$group)) %>%
+              mutate(perc = `Freq` / sum(`Freq`)) %>% 
+              mutate(labels = scales::percent(perc))
+
+pdf("./figures/230824_donwGene_byGroup.pdf", height = 4, width = 4)
+ggplot(df4Pie_e2c, aes(x = "", y = perc, fill = Var1)) +
+        geom_col(color = "black") +
+        coord_polar(theta = "y") + 
+        geom_text(aes(label = labels),
+        position = position_stack(vjust = 0.5)) +
+        guides(fill = guide_legend(title = NULL)) +
+        scale_fill_npg() +
+        #geom_label(aes(label = labels), 
+        #           color = rep("black", nrow(df4cas9Pie)),
+        #           position = position_stack(vjust = 0.1),
+        #show.legend = FALSE) + 
+        theme_void() +
+        ggtitle("e2c_down_gene (<30kb)")
+ggplot(df4Pie_l2c, aes(x = "", y = perc, fill = Var1)) +
+        geom_col(color = "black") +
+        coord_polar(theta = "y") + 
+        geom_text(aes(label = labels),
+        position = position_stack(vjust = 0.5)) +
+        guides(fill = guide_legend(title = NULL)) +
+        scale_fill_npg() +
+        #geom_label(aes(label = labels), 
+        #           color = rep("black", nrow(df4cas9Pie)),
+        #           position = position_stack(vjust = 0.1),
+        #show.legend = FALSE) + 
+        theme_void() +
+        ggtitle("l2c_down_gene (<30kb)")
+dev.off()
+```
+
+## Overlap to CBP/p300-dependent distal ATAC-seq peaks
+```{bash}
+#retrieve distal peaks
+tss="/data/ZYChenlab/Zhiyuan/genomes_annotations/mm10/annotations/gencode.vM25.tss.2.5kb.bed"
+bedtools intersect -a early2C_DMSO_ATAC_peaks.narrowPeak -b $tss -v > early2C_DMSO_distal_ATAC.narrowPeak
+
+```
+
+```{r}
+suppressMessages(library("rtracklayer"))
+suppressMessages(library("GenomicRanges"))
+
+#input distal ATAC
+distalATAC <- import.bed("./R_input/ATAC/early2C_DMSO_distal_ATAC.bed")
+
+# #convert to Grange object
+# colnames(distal_loss_ATAC) <- c("chr", "start", "end", "name", "score", "strand")
+# distal_loss_ATAC_gr <- makeGRangesFromDataFrame(distal_loss_ATAC)
+
+#convert l2c_down_30kb to Grange
+#only focus on no sense-up group
+l2c_down_30kb_no_senseup <-  l2c_down_30kb[which(l2c_down_30kb$group != "sense_up/intragenic"),]
+nrow(l2c_down_30kb_no_senseup) #62
+peak_gr <- GRanges(
+  seqnames = l2c_down_30kb_no_senseup$peak_chr,
+  ranges = IRanges(start = l2c_down_30kb_no_senseup$peak_start, 
+                   end = l2c_down_30kb_no_senseup$peak_end),
+  strand = l2c_down_30kb_no_senseup$peak_strand,
+  distance = l2c_down_30kb_no_senseup$distance,
+  gene = l2c_down_30kb_no_senseup$name
+)
+
+overlap <- findOverlaps(peak_gr, distalATAC)
+peak_gr$Peaks2 <- "non_distal_ATAC_loss"
+peak_gr$Peaks2[queryHits(overlap)] <- "overlap_with_distal_ATAC_loss"
+
+table(peak_gr$Peaks2)
+#non_distal_ATAC_loss overlap_with_distal_ATAC_loss 
+#20                            42 
+peak_gr[peak_gr$Peaks2 == "overlap_with_distal_ATAC_loss"]$gene
+
+pdf("./figures/230824_non_TEchimeric_gene.pdf", width = 4, height = 4)
+pie(c(20, 42), labels = c("no_ATAC", "ATAC"))
+dev.off()
+```
+
