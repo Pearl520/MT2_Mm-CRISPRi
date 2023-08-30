@@ -14,4 +14,4 @@
 
 ### "230829_main2_dCas9_ChIP_analyses.Rmd"
 
-  R note book for dCas9/HA ChIP-seq analyses: peak filtering, annotation, overlap with repeats, and deeptool heatmap, etc
+  R notebook for dCas9/HA ChIP-seq analyses: peak filtering, annotation, overlap with repeats, and deeptool heatmap, etc
