@@ -1,0 +1,1065 @@
+---
+title: "230829_sgRNAdesign_and_prediction"
+output: html_notebook
+---
+
+## sgRNA design
+```{sgRNA design bash}
+### Related perl scripts are at the end of this script
+
+### step 1 ###
+### use CRISPOR (http://crispor.tefor.net) to design sgRNA using MT2_Mm consensus as input
+### save output as csv for downstream analyses
+
+### process CRISPOR output for cas-offinder analyses
+perl process_CRISPOR_output4Cas_OFFinder.pl guides_MT2_Mm_consensus_GCA_001632555.1-unknownLoc.csv MT2_Mm
+
+### step2 ###
+### run cas-offinder analyses
+perl cas_offinder.pl MT2_Mm
+
+### step3 ###
+### process cas-offinder outputs
+#### 1) convert cas-offinder output to bed format
+#### 2) intersect to mm10_TE.gtf
+#### 3) count on-target and off-target events
+
+perl process_cas_offinder_output.pl  guides_MT2_Mm_consensus_GCA_001632555.1-unknownLoc.csv MT2_Mm
+
+### step4 ###
+### check potential off-targets to related TE subfamilies
+perl related_TE_families_count.pl guides_MT2_Mm_consensus_GCA_001632555.1-unknownLoc.csv MT2_Mm
+
+### This should generates outputs for R plotting
+```
+
+### on-targetting
+```{r load libraries}
+suppressMessages(library(RColorBrewer))
+suppressMessages(library(circlize))
+suppressMessages(library(ComplexHeatmap))
+```
+
+```{r functions}
+simplify_sg_id <- function(x){
+  tmp <- paste(unlist(strsplit(x, split = "[.|,]"))[1:3], collapse = "_")
+  tmp <- gsub(pattern = "X", x = tmp, replacement = "")
+  return (tmp)
+}
+
+Stack_plot <- function(df0, df1, df2, df3, sgRNA, title, max = 7){
+  
+  tmp_df<- data.frame(mis0 = rowSums(df0[, sgRNA]))
+  tmp_df$mis1 <- rowSums(df1[, sgRNA])
+  tmp_df$mis2 <- rowSums(df2[, sgRNA])
+  tmp_df$mis3 <- rowSums(df3[, sgRNA])
+    
+  #Now calculate fractions of repeats that are targeted by # of sgRNAs
+  tmp0 <- as.data.frame(table(tmp_df$mis0))
+  if (nrow(tmp0) < max+1){
+    tmp0 <- rbind(tmp0, data.frame(Var1 = paste(c(nrow(tmp0):max)), 
+                                   Freq = rep(0, max-nrow(tmp0)+1)))
+  }
+  tmp0$Pct <- tmp0$Freq / nrow(tmp_df)
+  tmp0$grp <- "mis0"
+  
+  tmp1 <- as.data.frame(table(tmp_df$mis1))
+  if (nrow(tmp1) < max+1){
+    tmp1 <- rbind(tmp1, data.frame(Var1 = paste(c(nrow(tmp1):max)), 
+                                   Freq = rep(0, max-nrow(tmp1)+1)))
+  }
+  tmp1$Pct <- tmp1$Freq / nrow(tmp_df)
+  tmp1$grp <- "mis1"
+  
+  tmp2 <- as.data.frame(table(tmp_df$mis2))
+  if (nrow(tmp2) < max+1){
+    tmp2 <- rbind(tmp2, data.frame(Var1 = paste(c(nrow(tmp2):max)), 
+                                   Freq = rep(0, max-nrow(tmp2)+1)))
+  }
+  tmp2$Pct <- tmp2$Freq / nrow(tmp_df)
+  tmp2$grp <- "mis2"
+  
+  tmp3 <- as.data.frame(table(tmp_df$mis3))
+  if (nrow(tmp3) < max+1){
+    tmp3 <- rbind(tmp3, data.frame(Var1 = paste(c(nrow(tmp3):max)), 
+                                   Freq = rep(0, max-nrow(tmp3)+1)))
+  }
+  tmp3$Pct <- tmp3$Freq / nrow(tmp_df)
+  tmp3$grp <- "mis3"
+
+  tmp4fig <- rbind(tmp0, tmp1, tmp2, tmp3)
+
+  suppressMessages(library(ggplot2))
+  suppressMessages(library(cowplot))
+  
+  fig <- ggplot(tmp4fig, aes(x = grp, y = Pct, 
+                           fill = factor(Var1, levels = c(max:0)))) + 
+  geom_bar(stat = "identity", position = "fill", color = "black") + 
+  scale_fill_grey(start = 0, end = 1) +
+  ggtitle(paste0("sgRNA alignments to ", title)) + 
+  xlab("Number of mismatches allowed") +
+  ylab(paste0("Fraction of ", title)) + 
+  labs(fill='sgRNAs aligned\nper LTR') +
+  scale_x_discrete(limits = c("mis0", "mis1", "mis2", "mis3"),
+                   labels = c("0", "1", "2", "3")) +
+  theme_cowplot(16) 
+  
+  return(fig)
+}
+```
+
+```{r on-target heatmap}
+#col = sgRNAs; #row = all MT2_Mm copies in mm10
+on_mis0 <- read.table("./R_input/sgRNA_target_prediction/MT2_Mm_20bp_sgRNA_onTarget_mis0_count.txt", header = T)
+on_mis1 <- read.table("./R_input/sgRNA_target_prediction/MT2_Mm_20bp_sgRNA_onTarget_mis1_count.txt", header = T)
+on_mis2 <- read.table("./R_input/sgRNA_target_prediction/MT2_Mm_20bp_sgRNA_onTarget_mis2_count.txt", header = T)
+on_mis3 <- read.table("./R_input/sgRNA_target_prediction/MT2_Mm_20bp_sgRNA_onTarget_mis3_count.txt", header = T)
+
+mat_on_mis0 <- t(as.matrix(on_mis0[, c(3:ncol(on_mis0))]))
+mat_on_mis1 <- t(as.matrix(on_mis1[, c(3:ncol(on_mis1))]))
+mat_on_mis2 <- t(as.matrix(on_mis2[, c(3:ncol(on_mis2))]))
+mat_on_mis3 <- t(as.matrix(on_mis3[, c(3:ncol(on_mis3))]))
+
+row.names(mat_on_mis0) <- unname(sapply(colnames(on_mis0)[3:ncol(on_mis0)], simplify_sg_id))
+row.names(mat_on_mis1) <- unname(sapply(colnames(on_mis1)[3:ncol(on_mis1)], simplify_sg_id))
+row.names(mat_on_mis2) <- unname(sapply(colnames(on_mis2)[3:ncol(on_mis2)], simplify_sg_id))
+row.names(mat_on_mis3) <- unname(sapply(colnames(on_mis3)[3:ncol(on_mis3)], simplify_sg_id))
+
+ha <- HeatmapAnnotation(length = on_mis0$Length, border = T,
+                       col = list(length = colorRamp2(c(0, 500), c("white", "firebrick3"))),
+                       annotation_name_side = "left")
+onTarget_heatmap <- Heatmap(mat_on_mis0, col = c("grey90", "cornflowerblue"),
+        cluster_rows = F, show_column_dend = F,
+        cluster_columns = T, show_row_names = T, row_names_side = "left", 
+        name = "On_Target", border = T, bottom_annotation = ha, width = unit(12, "cm"))
+```
+
+### off-targetting
+```{r off-target heatmap}
+off_mis0 <- read.table("./R_input/sgRNA_target_prediction/MT2_Mm_20bp_sgRNA_offTarget_mis0_count.txt", header = T)
+off_mis1 <- read.table("./R_input/sgRNA_target_prediction/MT2_Mm_20bp_sgRNA_offTarget_mis1_count.txt", header = T)
+off_mis2 <- read.table("./R_input/sgRNA_target_prediction/MT2_Mm_20bp_sgRNA_offTarget_mis2_count.txt", header = T)
+off_mis3 <- read.table("./R_input/sgRNA_target_prediction/MT2_Mm_20bp_sgRNA_offTarget_mis3_count.txt", header = T)
+
+off_mis0$sg_id <- sapply(off_mis0$sg_id, simplify_sg_id)
+off_mis1$sg_id <- sapply(off_mis1$sg_id, simplify_sg_id)
+off_mis2$sg_id <- sapply(off_mis2$sg_id, simplify_sg_id)
+off_mis3$sg_id <- sapply(off_mis3$sg_id, simplify_sg_id)
+
+keep1 <- c("MT2C_Mm", "MT2B2", "MT2B", "MT2B1")
+keep2 <- c("MT2C_Mm", "MT2B2", "MT2B", "MT2B1", "MT2A")
+
+mat_off_mis0 <- as.matrix(off_mis0[, c(2:ncol(off_mis0))])[, keep1]
+mat_off_mis1 <- as.matrix(off_mis1[, c(2:ncol(off_mis1))])[, keep2]
+mat_off_mis2 <- as.matrix(off_mis2[, c(2:ncol(off_mis2))])[, keep2]
+mat_off_mis3 <- as.matrix(off_mis3[, c(2:ncol(off_mis3))])[, keep2]
+
+row.names(mat_off_mis0) <- off_mis0$sg_id
+row.names(mat_off_mis1) <- off_mis1$sg_id
+row.names(mat_off_mis2) <- off_mis2$sg_id
+row.names(mat_off_mis3) <- off_mis3$sg_id
+
+off_mis0_htp <- Heatmap(mat_off_mis0, colorRamp2(c(0, 400), 
+                       c("white", "firebrick3")), show_row_names = F, 
+                       column_names_side = "top", cluster_columns = T, 
+                       show_column_dend = F, name = "Mismatch=0", border = T, width = unit(2, "cm"),
+                       rect_gp  = gpar(col = "black", lwd = 0.5))
+
+off_mis1_htp <- Heatmap(mat_off_mis1, colorRamp2(c(0, 400), 
+                       c("white", "firebrick3")), show_row_names = F, 
+                       column_names_side = "top", cluster_columns = T, 
+                       show_column_dend = F, name = "Mismatch=1", border = T, width = unit(2, "cm"),
+                       rect_gp  = gpar(col = "black", lwd = 0.5))
+
+off_mis2_htp <- Heatmap(mat_off_mis2, colorRamp2(c(0, 400), 
+                       c("white", "firebrick3")), show_row_names = F, 
+                       column_names_side = "top", cluster_columns = T, 
+                       show_column_dend = F, name = "Mismatch=2", border = T, width = unit(2, "cm"),
+                       rect_gp  = gpar(col = "black", lwd = 0.5))
+
+off_mis3_htp <- Heatmap(mat_off_mis3, colorRamp2(c(0, 400), 
+                       c("white", "firebrick3")), show_row_names = F, 
+                       column_names_side = "top", cluster_columns = T, 
+                       show_column_dend = F, name = "Mismatch=3", border = T, width = unit(2, "cm"),
+                       rect_gp  = gpar(col = "black", lwd = 0.5))
+off_mis0_htp + off_mis1_htp + off_mis2_htp + off_mis3_htp
+```
+
+```{r combine on- and off-target heatmap}
+pdf("./figures/230813_MT2_Mm_sgRNA_on_off_target.pdf", width = 14, height = 8)
+onTarget_heatmap + off_mis0_htp + off_mis1_htp + off_mis2_htp + off_mis3_htp
+dev.off()
+```
+
+Based on this heatmap, pick following 6x sgRNAs
+"196forw_50_36", 
+"285forw_59_63", 
+"109forw_38_45",
+"410rev_63_34", 
+"90forw_63_37", 
+"358rev_64_56"
+
+```{r stack plot}
+### for MT2_Mm
+on_mis0 <- read.table("./R_input/sgRNA_target_prediction/MT2_Mm_20bp_sgRNA_onTarget_mis0_count.txt", header = T)
+on_mis1 <- read.table("./R_input/sgRNA_target_prediction/MT2_Mm_20bp_sgRNA_onTarget_mis1_count.txt", header = T)
+on_mis2 <- read.table("./R_input/sgRNA_target_prediction/MT2_Mm_20bp_sgRNA_onTarget_mis2_count.txt", header = T)
+on_mis3 <- read.table("./R_input/sgRNA_target_prediction/MT2_Mm_20bp_sgRNA_onTarget_mis3_count.txt", header = T)
+
+simple_sg_id <- unname(sapply(colnames(on_mis0)[3:ncol(on_mis0)], simplify_sg_id))
+colnames(on_mis0) <- c("LTR_id", "Length", simple_sg_id)          
+colnames(on_mis1) <- c("LTR_id", "Length", simple_sg_id)
+colnames(on_mis2) <- c("LTR_id", "Length", simple_sg_id)
+colnames(on_mis3) <- c("LTR_id", "Length", simple_sg_id)
+
+sg_set <- c("196forw_50_36", "285forw_59_63", "109forw_38_45",
+             "410rev_63_34", "90forw_63_37", "358rev_64_56")
+
+#calculate # of MT2_Mm targeted at 0 mismatch
+mis0 <- rowSums(on_mis0[, sg_set])
+tmp <- as.data.frame(table(mis0))
+tmp
+#0	146			
+#1	80			
+#2	142			
+#3	176			
+#4	324			
+#5	607			
+#6	1192	
+
+pdf("./figures/230813_MT2_Mm_targeting_prediction.pdf", width = 6, height = 5)
+Stack_plot(on_mis0, on_mis1, on_mis2, on_mis3, sg_set, 
+                   "MT2_Mm", max = 6)
+dev.off()
+
+### For other closely related subfamilies
+count_files <- list()
+count_files[["MT2C_Mm_mis0"]] <- "./R_input/sgRNA_target_prediction/MT2C_Mm_20bp_sgRNA_onTarget_mis0_count.txt"
+count_files[["MT2C_Mm_mis1"]] <- "./R_input/sgRNA_target_prediction/MT2C_Mm_20bp_sgRNA_onTarget_mis1_count.txt"
+count_files[["MT2C_Mm_mis2"]] <- "./R_input/sgRNA_target_prediction/MT2C_Mm_20bp_sgRNA_onTarget_mis2_count.txt"
+count_files[["MT2C_Mm_mis3"]] <- "./R_input/sgRNA_target_prediction/MT2C_Mm_20bp_sgRNA_onTarget_mis3_count.txt"
+
+count_files[["MT2B_mis0"]] <- "./R_input/sgRNA_target_prediction/MT2B_20bp_sgRNA_onTarget_mis0_count.txt"
+count_files[["MT2B_mis1"]] <- "./R_input/sgRNA_target_prediction/MT2B_20bp_sgRNA_onTarget_mis1_count.txt"
+count_files[["MT2B_mis2"]] <- "./R_input/sgRNA_target_prediction/MT2B_20bp_sgRNA_onTarget_mis2_count.txt"
+count_files[["MT2B_mis3"]] <- "./R_input/sgRNA_target_prediction/MT2B_20bp_sgRNA_onTarget_mis3_count.txt"
+  
+count_files[["MT2B1_mis0"]] <- "./R_input/sgRNA_target_prediction/MT2B1_20bp_sgRNA_onTarget_mis0_count.txt"
+count_files[["MT2B1_mis1"]] <- "./R_input/sgRNA_target_prediction/MT2B1_20bp_sgRNA_onTarget_mis1_count.txt"
+count_files[["MT2B1_mis2"]] <- "./R_input/sgRNA_target_prediction/MT2B1_20bp_sgRNA_onTarget_mis2_count.txt"
+count_files[["MT2B1_mis3"]] <- "./R_input/sgRNA_target_prediction/MT2B1_20bp_sgRNA_onTarget_mis3_count.txt"
+
+count_files[["MT2B2_mis0"]] <- "./R_input/sgRNA_target_prediction/MT2B2_20bp_sgRNA_onTarget_mis0_count.txt"
+count_files[["MT2B2_mis1"]] <- "./R_input/sgRNA_target_prediction/MT2B2_20bp_sgRNA_onTarget_mis1_count.txt"
+count_files[["MT2B2_mis2"]] <- "./R_input/sgRNA_target_prediction/MT2B2_20bp_sgRNA_onTarget_mis2_count.txt"
+count_files[["MT2B2_mis3"]] <- "./R_input/sgRNA_target_prediction/MT2B2_20bp_sgRNA_onTarget_mis3_count.txt"
+
+
+df.list <- list()
+for(i in 1:length(count_files)){
+  df.list[[i]] <- read.table(count_files[[i]], header = T)
+  simple_sg_id <- unname(sapply(colnames(df.list[[i]])[3:ncol(df.list[[i]])], 
+                                simplify_sg_id))
+  colnames(df.list[[i]]) <- c("LTR_id", "Length", simple_sg_id)
+}
+names(df.list) <- names(count_files)
+
+#calculate # of MT2C_Mm targeted at 0 mismatch
+mis0 <- rowSums(df.list$MT2C_Mm_mis0[, sg_set])
+tmp <- as.data.frame(table(mis0))
+tmp
+#0	1425			
+#1	452			
+#2	76			
+#3	18			
+#4	9			
+#5	2		
+
+pdf("./figures/230813_Others_targeting_prediction.pdf", width = 6, height = 5)
+Stack_plot(df.list$MT2C_Mm_mis0, 
+                   df.list$MT2C_Mm_mis1,
+                   df.list$MT2C_Mm_mis2,
+                   df.list$MT2C_Mm_mis3,
+                   sg_set, 
+                   "MT2C_Mm", max = 6)
+Stack_plot(df.list$MT2B_mis0, 
+                   df.list$MT2B_mis1,
+                   df.list$MT2B_mis2,
+                   df.list$MT2B_mis3,
+                   sg_set, 
+                   "MT2B", max = 6)
+Stack_plot(df.list$MT2B1_mis0, 
+                   df.list$MT2B1_mis1,
+                   df.list$MT2B1_mis2,
+                   df.list$MT2B1_mis3,
+                   sg_set, 
+                   "MT2B1", max = 6)
+Stack_plot(df.list$MT2B2_mis0, 
+                   df.list$MT2B2_mis1,
+                   df.list$MT2B2_mis2,
+                   df.list$MT2B2_mis3,
+                   sg_set, 
+                   "MT2B2", max = 6)
+dev.off()
+```
+
+## Perl scripts
+### process_CRISPOR_output4Cas_OFFinder.pl
+```{perl}
+#!/usr/bin/perl -w 
+
+use strict;
+use Data::Dumper;
+
+my $CRISPOR_output = shift @ARGV or die$!;
+my $TE = shift @ARGV or die$!;
+
+#process CRISPOR output (20bp seed sequences) -> generate input for cas-offinder
+#also return hash_ref (key = sgRNA sequence; value = sg_id)
+my $sg20 = &process_CRISPOR_output4Cas_OFFinder ($TE, $CRISPOR_output, 20, 5); 
+
+sub process_CRISPOR_output4Cas_OFFinder{
+
+        #input as CRISPOR_output (csv)
+        #output sgRNA fasta ${title}_${seedlength}_CRISPOR.txt (which serve as input for cas-offinder
+        #Also return hash_reference (key = sequence_without_PAM; value = sgRNA_id)
+        #ID (guideID,Doench_score,Moreno-Mateos_score,Graf_motif)
+        #option1: 20bp guide
+        #option2: # of mismatches
+        
+        my ($title, $file, $seed_length, $mismatch) = @_;
+        my %sgRNA;
+        
+        open(IN, $file) or die$!;
+        open(OUT, ">${title}_${seed_length}bp_CRISPOR.txt") or die$!;   
+
+        #prepare header
+        print OUT "/data/ZYChenlab/Zhiyuan/genomes_annotations/mm10/genomes\n";
+        print OUT "N" x $seed_length . "NGG\t0\t0\n";
+
+        while (my $line = <IN>){
+        chomp $line;
+        next if $line =~ /(^\#)|(^,)/;
+        next if $line =~ /^</;
+
+        my @split = split(/,/, $line);
+        my $id = $split[0];
+
+        #retrieve seed sequence & add "NGG" PAM
+        my $seq = $split[1];
+        my $gRNA = substr $seq, 20-$seed_length, $seed_length;
+
+        my $Doench = $split[6];
+        $Doench =~ s/NotEnoughFlankSeq/NA/g;
+
+        my $Moreno = $split[13];
+        $Moreno =~ s/NotEnoughFlankSeq/NA/g;
+
+        my $GrafEtAlStatus = $split[18];
+        next if $GrafEtAlStatus =~ "tt";
+        $GrafEtAlStatus =~ s/GrafOK/1/g;
+
+        $id = $id . "," . $Doench . "," . $Moreno . "," . $GrafEtAlStatus;
+        $gRNA = $gRNA . "NNN";
+
+        print OUT "$gRNA\t$mismatch\t$id\n";
+        $sgRNA{$gRNA} = $id;
+
+        }
+        close IN;
+        close OUT;
+        return (\%sgRNA);
+}
+```
+
+### cas_offinder.pl
+```{perl}
+#!/usr/bin/perl 
+use strict;
+
+my $TE = shift @ARGV or die$!;
+
+unless (-s "${TE}_20bp_CasOFFinder.output.txt"){    &Cas_OFFinder ($TE, 20); }
+
+sub Cas_OFFinder {
+    my ($title, $seed_length) = @_;
+    system ("cas-offinder ${title}_${seed_length}bp_CRISPOR.txt G0 ${title}_${seed_length}bp_CasOFFinder.output.txt");
+}
+```
+
+### process_cas_offinder_output.pl
+```{perl}
+#!/usr/bin/perl 
+
+use strict;
+
+my $CRISPOR_output = shift @ARGV or die$!;
+my $TE = shift @ARGV or die$!;
+
+#simply to get sgRNA_id:
+my $sg20 = &get_id  ($TE, $CRISPOR_output, 20, 3);
+
+#correct cas-offinder mismatch:
+&recalculate_mismatch("${TE}_20bp_CasOFFinder.output.txt", "${TE}_20bp_CasOFFinder.output.corrected.txt");
+
+#Convert cas-offinder output to BED format
+&Cas_OFFinder_to_BED ("${TE}_20bp_CasOFFinder.output.corrected.txt", $TE, 20);
+
+#IntersectBed to TE.GTF
+unless (-s "${TE}_20bp_intersect_TE.txt" ) { &IntersectBed ( "${TE}_20bp_CasOFFinder.bed", $TE, 20); }
+
+#Output sgRNA on-target&off-target information
+&sgRNA_on_off_Target($TE, 20);
+
+sub recalculate_mismatch{
+        
+        my $file = shift @_;
+        my $out = shift @_;
+
+        open (FILE, $file) or die$!;
+        open (OUT, ">$out") or die$!;
+ 
+        while (my $line = <FILE>){
+                chomp $line;
+                #TTCAAACCAAGATCCAGATANNN chr1 1  10982418        TTCAAACCAAGATCCAGATAAGGATCT     -       0
+                my @split = split (/\s+/, $line);
+                my $seq1 = substr $split[0], 0, 20;
+                my $seq2 = substr $split[4], 0, 20;             
+        
+                $seq1  = uc $seq1;
+                $seq2  = uc $seq2;
+                my @seq1 = split(//, $seq1);
+                my @seq2 = split(//, $seq2);
+                my $mismatch = 0;
+                foreach(my $i = 0; $i<=$#seq1; $i++){
+                        if($seq1[$i] ne $seq2[$i]){
+                                $mismatch++;
+                        }
+                }
+                my $tmp = pop @split;
+                my $print = join("\t", @split);
+                print OUT $print  . "\t" . $mismatch . "\n";
+        }
+        close FILE;
+        close OUT;
+}
+
+sub sgRNA_on_off_Target{
+    my ($title, $seed_length) = @_;
+    
+    my $all_TE = &TE_id_length($title);
+    my ($onTarget_mis0, $onTarget_mis1, $onTarget_mis2, $onTarget_mis3, $offTarget_mis0, $offTarget_mis1, $offTarget_mis2, $offTarget_mis3) = &ProcessIntersectBed ( "${title}_${seed_length}bp_intersect_TE.txt", $TE, $seed_length);
+
+    #ouput on target table
+    open (OUT0, ">${TE}_${seed_length}bp_sgRNA_onTarget_mis0_count.txt") or die$!;
+    open (OUT1, ">${TE}_${seed_length}bp_sgRNA_onTarget_mis1_count.txt") or die$!;
+    open (OUT2, ">${TE}_${seed_length}bp_sgRNA_onTarget_mis2_count.txt") or die$!;
+    open (OUT3, ">${TE}_${seed_length}bp_sgRNA_onTarget_mis3_count.txt") or die$!;
+   
+    #col = sgRNAs; row = all MT2_Mm copies 
+    #print header;
+    print OUT0 "LTR_id\tLength\t";    print OUT1 "LTR_id\tLength\t";    print OUT2 "LTR_id\tLength\t";    print OUT3 "LTR_id\tLength\t";
+    foreach my $sg_id (sort keys %{$onTarget_mis0} ){
+        print OUT0 $sg_id . "\t"; print OUT1 $sg_id . "\t"; print OUT2 $sg_id . "\t"; print OUT3 $sg_id . "\t";
+    }
+    print OUT0 "\n"; print OUT1 "\n"; print OUT2 "\n"; print OUT3 "\n";
+
+    foreach my $te_id (sort keys %{$all_TE}){
+        print OUT0 $te_id . "\t" . $all_TE->{$te_id} . "\t";
+        print OUT1 $te_id . "\t" . $all_TE->{$te_id} . "\t";
+        print OUT2 $te_id . "\t" . $all_TE->{$te_id} . "\t";
+        print OUT3 $te_id . "\t" . $all_TE->{$te_id} . "\t";
+
+        foreach my $sg_id (sort keys %{$onTarget_mis0}){
+            unless ($onTarget_mis0->{$sg_id}->{$te_id}) { $onTarget_mis0->{$sg_id}->{$te_id}=0; }
+            unless ($onTarget_mis1->{$sg_id}->{$te_id}) { $onTarget_mis1->{$sg_id}->{$te_id}=0; }
+            unless ($onTarget_mis2->{$sg_id}->{$te_id}) { $onTarget_mis2->{$sg_id}->{$te_id}=0; }
+            unless ($onTarget_mis3->{$sg_id}->{$te_id}) { $onTarget_mis3->{$sg_id}->{$te_id}=0; }
+
+            #if sgRNA targets with 0 mismatch, it should also be counted into 1, 2, 3 mismatch
+            if ($onTarget_mis0->{$sg_id}->{$te_id} == 1) { $onTarget_mis1->{$sg_id}->{$te_id}=1; $onTarget_mis2->{$sg_id}->{$te_id} = 1; $onTarget_mis3->{$sg_id}->{$te_id} = 1; }
+            if ($onTarget_mis1->{$sg_id}->{$te_id} == 1) { $onTarget_mis2->{$sg_id}->{$te_id}=1; $onTarget_mis3->{$sg_id}->{$te_id} = 1; }
+            if ($onTarget_mis2->{$sg_id}->{$te_id} == 1) { $onTarget_mis3->{$sg_id}->{$te_id}=1; }      
+            
+            print OUT0 $onTarget_mis0->{$sg_id}->{$te_id} . "\t";
+            print OUT1 $onTarget_mis1->{$sg_id}->{$te_id} . "\t";
+            print OUT2 $onTarget_mis2->{$sg_id}->{$te_id} . "\t";
+            print OUT3 $onTarget_mis3->{$sg_id}->{$te_id} . "\t";
+        }
+        print OUT0 "\n"; print OUT1 "\n"; print OUT2 "\n"; print OUT3 "\n";
+    }  
+    close OUT0; close OUT1; close OUT2; close OUT3;
+
+    #output off target table -> summarize all TE types of off-target for each level of mismatches
+    my (%offtarget_TE_mis0, %offtarget_TE_mis1, %offtarget_TE_mis2, %offtarget_TE_mis3);
+    foreach my $sg_id (sort keys %{$offTarget_mis0} ){
+        foreach my $te_name (sort keys %{ $offTarget_mis0->{$sg_id} } ){
+            $offtarget_TE_mis0{$te_name}->{$sg_id} = $offTarget_mis0->{$sg_id}->{$te_name};
+        }
+    }
+    foreach my $sg_id (sort keys %{$offTarget_mis1} ){
+        foreach my $te_name (sort keys %{ $offTarget_mis1->{$sg_id} } ){
+            $offtarget_TE_mis1{$te_name}->{$sg_id} = $offTarget_mis1->{$sg_id}->{$te_name};
+        }
+    }
+    foreach my $sg_id (sort keys %{$offTarget_mis2} ){
+        foreach my $te_name (sort keys %{ $offTarget_mis2->{$sg_id} } ){
+            $offtarget_TE_mis2{$te_name}->{$sg_id} = $offTarget_mis2->{$sg_id}->{$te_name};
+        }
+    }
+    foreach my $sg_id (sort keys %{$offTarget_mis3} ){
+        foreach my $te_name (sort keys %{ $offTarget_mis3->{$sg_id} } ){
+            $offtarget_TE_mis3{$te_name}->{$sg_id} = $offTarget_mis3->{$sg_id}->{$te_name};
+        }
+    }
+
+    open (OUF0, ">${TE}_${seed_length}bp_sgRNA_offTarget_mis0_count.txt") or die$!;
+    open (OUF1, ">${TE}_${seed_length}bp_sgRNA_offTarget_mis1_count.txt") or die$!;
+    open (OUF2, ">${TE}_${seed_length}bp_sgRNA_offTarget_mis2_count.txt") or die$!;
+    open (OUF3, ">${TE}_${seed_length}bp_sgRNA_offTarget_mis3_count.txt") or die$!;
+
+    #print header;
+    print OUF0 "sg_id\t"; print OUF1 "sg_id\t"; print OUF2 "sg_id\t"; print OUF3 "sg_id\t";
+    foreach my $te_name (sort keys %offtarget_TE_mis0 ){ print OUF0 "$te_name\t"; }
+    foreach my $te_name (sort keys %offtarget_TE_mis1 ){ print OUF1 "$te_name\t"; }
+    foreach my $te_name (sort keys %offtarget_TE_mis2 ){ print OUF2 "$te_name\t"; }
+    foreach my $te_name (sort keys %offtarget_TE_mis3 ){ print OUF3 "$te_name\t"; }
+    print OUF0 "\n"; print OUF1 "\n"; print OUF2 "\n"; print OUF3 "\n";
+    
+    foreach my $sg_id (sort keys %{$onTarget_mis0} ){
+        print OUF0 $sg_id . "\t"; print OUF1 $sg_id . "\t"; print OUF2 $sg_id . "\t"; print OUF3 $sg_id . "\t";
+        foreach my $te_name (sort keys %offtarget_TE_mis0){
+            unless ( $offtarget_TE_mis0{$te_name}->{$sg_id} ) { $offtarget_TE_mis0{$te_name}->{$sg_id} = 0; } 
+            print OUF0 $offtarget_TE_mis0{$te_name}->{$sg_id} . "\t"; }
+        
+        foreach my $te_name (sort keys %offtarget_TE_mis1){
+            unless ( $offtarget_TE_mis1{$te_name}->{$sg_id} ) { $offtarget_TE_mis1{$te_name}->{$sg_id} = 0; } 
+            print OUF1 $offtarget_TE_mis1{$te_name}->{$sg_id} . "\t"; }
+
+        foreach my $te_name (sort keys %offtarget_TE_mis2){
+            unless ( $offtarget_TE_mis2{$te_name}->{$sg_id} ) { $offtarget_TE_mis2{$te_name}->{$sg_id} = 0; } 
+            print OUF2 $offtarget_TE_mis2{$te_name}->{$sg_id} . "\t"; }
+
+        foreach my $te_name (sort keys %offtarget_TE_mis3){
+            unless ( $offtarget_TE_mis3{$te_name}->{$sg_id} ) { $offtarget_TE_mis3{$te_name}->{$sg_id} = 0; } 
+            print OUF3 $offtarget_TE_mis3{$te_name}->{$sg_id} . "\t";
+        }
+        print OUF0 "\n"; print OUF1 "\n"; print OUF2 "\n"; print OUF3 "\n";
+    }
+    close OUF0; close OUF1; close OUF2; close OUF3;
+}
+
+sub ProcessIntersectBed {
+    my ($file, $title, $seed_length) = @_;
+    
+    #make two output: 1) On-target of sgRNA on each $TE; 2) Off-target counts for non-$TE
+    open (FILE, "$file") or die$!;
+
+    my (%onTarget_mis0, %onTarget_mis1, %onTarget_mis2, %onTarget_mis3);
+    my (%offTarget_mis0, %offTarget_mis1, %offTarget_mis2, %offTarget_mis3);
+
+    while (my $line = <FILE>){
+        chomp $line;
+        my @split = split ("\t", $line);        
+        
+        #sgRNA id
+        my $sg_id = $split[3];
+        my @tmp = split (/,/, $sg_id); pop(@tmp); $tmp[-1] =~ s/N//g;
+        $sg_id = join (",", @tmp);
+
+        #TE id #chr:pos1-pos2
+        my $te_id = $split[6] . ":" . $split[9] . "-" . $split[10];
+
+        #TE name
+        my @split2 = split (/\s+/, $split[-1]);
+        my $te_name  = $split2[1];
+        $te_name =~ s/[";]//g;
+
+        #on target record
+        if ( $te_name eq $title ){ 
+            if ( $split[4] == 0 ){ $onTarget_mis0{$sg_id}->{$te_id} = 1;  }
+            if ( $split[4] == 1 ){ $onTarget_mis1{$sg_id}->{$te_id} = 1;  }
+            if ( $split[4] == 2 ){ $onTarget_mis2{$sg_id}->{$te_id} = 1;  }
+            if ( $split[4] == 3 ){ $onTarget_mis3{$sg_id}->{$te_id} = 1;  }
+        }
+        
+        #off target record
+        if ( $te_name ne $title ){ 
+            if ( $split[4] == 0 ){ $offTarget_mis0{$sg_id}->{$te_name}++; }
+            if ( $split[4] == 1 ){ $offTarget_mis1{$sg_id}->{$te_name}++; }
+            if ( $split[4] == 2 ){ $offTarget_mis2{$sg_id}->{$te_name}++; }
+            if ( $split[4] == 3 ){ $offTarget_mis3{$sg_id}->{$te_name}++; }
+        }       
+    }   
+    return (\%onTarget_mis0, \%onTarget_mis1, \%onTarget_mis2, \%onTarget_mis3, \%offTarget_mis0, \%offTarget_mis1, \%offTarget_mis2, \%offTarget_mis3);
+}
+
+sub TE_id_length {
+    #return a hash reference: key = TE_id (chr_pos); value = length (bp)
+    my $title = shift @_;
+    my $GTF = "/data/ZYChenlab/Zhiyuan/genomes_annotations/mm10/annotations/mm10_rmsk_TE.gtf";
+    my $grep = "\'gene_id " . '"' . $title . '"\'';
+
+    system("grep $grep $GTF > mm10_${title}.gtf");    
+    open (GTF, "mm10_${title}.gtf") or die$!;
+    my %hash;
+    while (my $line = <GTF>){
+        chomp $line;
+        my @split = split (/\s+/, $line);
+        my $id = $split[0] . ":" . $split[3] . "-" . $split[4];
+        my $length = $split[4] - $split[3] + 1;
+        $hash{$id} = $length;
+    }
+    return (\%hash);
+}
+
+sub IntersectBed {
+    my ($bed, $title, $seed_length) =  @_;
+    my $TE_GTF = "/data/ZYChenlab/Zhiyuan/genomes_annotations/mm10/annotations/mm10_rmsk_TE.gtf";
+    system("bedtools intersect -a $bed -b $TE_GTF -wa -wb > ${title}_${seed_length}bp_intersect_TE.txt");
+}
+
+sub Cas_OFFinder_to_BED {
+    #convert cas-offinder output to bed
+    #chr  start  end  Name(sgRNAid) Score(#_of_mismatches)  Strand
+          
+    my ($inFile, $title, $seed_length) = @_;
+
+    open (BED, ">${title}_${seed_length}bp_CasOFFinder.bed") or die$!;
+    open (INFILE, "$inFile") or die$!;
+
+    while (my $line = <INFILE>){
+        chomp $line;
+        my ($sgRNA, $chr, $chr2, $start, $ref, $strand, $mismatch) = split (/\s+/, $line);
+        my $end;
+        
+        if ($strand eq '+'){ $end = $start + $seed_length - 1; }
+        if ($strand eq '-'){ $start = $start + 7; $end = $start + $seed_length - 1; }
+        if ($seed_length == 20){    print BED "$chr\t$start\t$end\t$sg20->{$sgRNA},$sgRNA,$ref\t$mismatch\t$strand\n"; }        
+    }
+    close INFILE;
+    close BED;
+}
+
+sub get_id{
+
+        #input as CRISPOR_output (csv)
+        #Also return hash_reference (key = sequence_without_PAM; value = sgRNA_id)
+        #ID (guideID,Doench_score,Moreno-Mateos_score,Graf_motif)
+        #options: 20bp guide
+
+        my ($title, $file, $seed_length, $mismatch) = @_;
+        my %sgRNA;
+        
+        open(IN, $file) or die$!;
+        while (my $line = <IN>){
+                chomp $line;
+                next if $line =~ /(^\#)|(^,)/;
+                next if $line =~ /^</;
+
+                my @split = split(/,/, $line);
+                my $id = $split[0];
+
+                #retrieve seed sequence & add "NGG" PAM
+                my $seq = $split[1];
+                my $gRNA = substr $seq, 20-$seed_length, $seed_length;
+
+                my $Doench = $split[6];
+                $Doench =~ s/NotEnoughFlankSeq/NA/g;
+
+                my $Moreno = $split[13];
+                $Moreno =~ s/NotEnoughFlankSeq/NA/g;
+
+                my $GrafEtAlStatus = $split[18];
+                next if $GrafEtAlStatus =~ "tt";
+                $GrafEtAlStatus =~ s/GrafOK/1/g;
+
+                $id = $id . "," . $Doench . "," . $Moreno . "," . $GrafEtAlStatus;
+                $gRNA = $gRNA . "NNN";
+
+                $sgRNA{$gRNA} = $id;
+        }
+        close IN;
+        return (\%sgRNA);
+}
+```
+
+### related_TE_families_count.pl
+```{perl}
+#!/usr/bin/perl 
+
+use strict;
+
+my $CRISPOR_output = shift @ARGV or die$!;
+my $TE = shift @ARGV or die$!;
+
+#simply to get sgRNA_id:
+my $sg20 = &get_id  ($TE, $CRISPOR_output, 20, 3);;
+
+#correct cas-offinder mismatch:
+&recalculate_mismatch("${TE}_20bp_CasOFFinder.output.txt", "${TE}_20bp_CasOFFinder.output.corrected.txt");
+
+#Convert cas-offinder output to BED format
+&Cas_OFFinder_to_BED ("${TE}_20bp_CasOFFinder.output.corrected.txt", $TE, 20);
+
+#IntersectBed to TE.GTF
+unless (-s "${TE}_20bp_intersect_TE.txt" ) { &IntersectBed ( "${TE}_20bp_CasOFFinder.bed", $TE, 20); }
+
+#Output sgRNA on-target&off-target information
+&sgRNA_on_off_Target($TE, 20);
+
+&sgRNA_on_Target_related_families("${TE}_20bp_intersect_TE.txt", "MT2C_Mm", 20);
+&sgRNA_on_Target_related_families("${TE}_20bp_intersect_TE.txt", "MT2B2", 20);
+&sgRNA_on_Target_related_families("${TE}_20bp_intersect_TE.txt", "MT2B", 20);
+&sgRNA_on_Target_related_families("${TE}_20bp_intersect_TE.txt", "MT2B1", 20);
+
+sub sgRNA_on_Target_related_families{
+    my ($file, $title, $seed_length) = @_;
+    my $all_TE = &TE_id_length($title);
+
+    #this is to retrieve sgRNA_id from $tmp1, other $tmp* not useful
+    my ($all_sg, $tmp2, $tmp3, $tmp4, $tmp5, $tmp6, $tmp7, $tmp8) = &ProcessIntersectBed ( "${TE}_${seed_length}bp_intersect_TE.txt", $TE, $seed_length);
+    open (FILE, "$file") or die$!;
+    my (%onTarget_mis0, %onTarget_mis1, %onTarget_mis2, %onTarget_mis3);
+
+    while (my $line = <FILE>){
+        chomp $line;
+        my @split = split ("\t", $line);
+
+        #sgRNA id
+        my $sg_id = $split[3];
+        my @tmp = split (/,/, $sg_id); pop(@tmp); $tmp[-1] =~ s/N//g;
+        $sg_id = join (",", @tmp);
+
+        #TE id
+        my $te_id = $split[6] . ":" . $split[9] . "-" . $split[10];
+
+        #TE name
+        my @split2 = split (/\s+/, $split[-1]);
+        my $te_name  = $split2[1];
+        $te_name =~ s/[";]//g;
+        
+        #on target record
+        if ( $te_name eq $title ){
+                if ( $split[4] == 0 ){ $onTarget_mis0{$sg_id}->{$te_id} = 1;  }
+                if ( $split[4] == 1 ){ $onTarget_mis1{$sg_id}->{$te_id} = 1;  }
+                if ( $split[4] == 2 ){ $onTarget_mis2{$sg_id}->{$te_id} = 1;  }
+                if ( $split[4] == 3 ){ $onTarget_mis3{$sg_id}->{$te_id} = 1;  }
+        }
+    }
+    close FILE;
+
+ #ouput on target table
+    open (OUT0, ">${title}_${seed_length}bp_sgRNA_onTarget_mis0_count.txt") or die$!;
+    open (OUT1, ">${title}_${seed_length}bp_sgRNA_onTarget_mis1_count.txt") or die$!;
+    open (OUT2, ">${title}_${seed_length}bp_sgRNA_onTarget_mis2_count.txt") or die$!;
+    open (OUT3, ">${title}_${seed_length}bp_sgRNA_onTarget_mis3_count.txt") or die$!;
+
+    #print header;
+    print OUT0 "LTR_id\tLength\t";    print OUT1 "LTR_id\tLength\t";    print OUT2 "LTR_id\tLength\t";    print OUT3 "LTR_id\tLength\t";
+    foreach my $sg_id (sort keys %{$all_sg} ){
+        print OUT0 $sg_id . "\t"; print OUT1 $sg_id . "\t"; print OUT2 $sg_id . "\t"; print OUT3 $sg_id . "\t";
+    }
+    print OUT0 "\n"; print OUT1 "\n"; print OUT2 "\n"; print OUT3 "\n";
+
+    foreach my $te_id (sort keys %{$all_TE}){
+        print OUT0 $te_id . "\t" . $all_TE->{$te_id} . "\t";
+        print OUT1 $te_id . "\t" . $all_TE->{$te_id} . "\t";
+        print OUT2 $te_id . "\t" . $all_TE->{$te_id} . "\t";
+        print OUT3 $te_id . "\t" . $all_TE->{$te_id} . "\t";
+
+   # foreach my $sg_id (sort keys %onTarget_mis0){
+        foreach my $sg_id (sort keys %{$all_sg} ){
+                unless ($onTarget_mis0{$sg_id}->{$te_id}) { $onTarget_mis0{$sg_id}->{$te_id}=0; }
+                unless ($onTarget_mis1{$sg_id}->{$te_id}) { $onTarget_mis1{$sg_id}->{$te_id}=0; }
+                unless ($onTarget_mis2{$sg_id}->{$te_id}) { $onTarget_mis2{$sg_id}->{$te_id}=0; }
+                unless ($onTarget_mis3{$sg_id}->{$te_id}) { $onTarget_mis3{$sg_id}->{$te_id}=0; }
+                #if sgRNA targets with 0 mismatch, it should also be counted into 1, 2, 3 mismatch
+           
+                if ($onTarget_mis0{$sg_id}->{$te_id} == 1) { $onTarget_mis1{$sg_id}->{$te_id}=1; $onTarget_mis2{$sg_id}->{$te_id} = 1; $onTarget_mis3{$sg_id}->{$te_id} = 1; }
+                if ($onTarget_mis1{$sg_id}->{$te_id} == 1) { $onTarget_mis2{$sg_id}->{$te_id}=1; $onTarget_mis3{$sg_id}->{$te_id} = 1; }
+                if ($onTarget_mis2{$sg_id}->{$te_id} == 1) { $onTarget_mis3{$sg_id}->{$te_id}=1; }
+                print OUT0 $onTarget_mis0{$sg_id}->{$te_id} . "\t";
+                print OUT1 $onTarget_mis1{$sg_id}->{$te_id} . "\t";
+                print OUT2 $onTarget_mis2{$sg_id}->{$te_id} . "\t";
+                print OUT3 $onTarget_mis3{$sg_id}->{$te_id} . "\t";
+        }
+        print OUT0 "\n"; print OUT1 "\n"; print OUT2 "\n"; print OUT3 "\n"; 
+    }
+    close OUT0; close OUT1; close OUT2; close OUT3;
+}
+
+sub recalculate_mismatch{
+        
+        my $file = shift @_;
+        my $out = shift @_;
+
+        open (FILE, $file) or die$!;
+        open (OUT, ">$out") or die$!;
+ 
+        while (my $line = <FILE>){
+                chomp $line;
+                #TTCAAACCAAGATCCAGATANNN chr1 1  10982418        TTCAAACCAAGATCCAGATAAGGATCT     -       0
+                my @split = split (/\s+/, $line);
+                my $seq1 = substr $split[0], 0, 20;
+                my $seq2 = substr $split[4], 0, 20;             
+        
+                $seq1  = uc $seq1;
+                $seq2  = uc $seq2;
+                my @seq1 = split(//, $seq1);
+                my @seq2 = split(//, $seq2);
+                my $mismatch = 0;
+                foreach(my $i = 0; $i<=$#seq1; $i++){
+                        if($seq1[$i] ne $seq2[$i]){
+                                $mismatch++;
+                        }
+                }
+                my $tmp = pop @split;
+                my $print = join("\t", @split);
+                print OUT $print  . "\t" . $mismatch . "\n";
+        }
+        close FILE;
+        close OUT;
+}
+
+sub sgRNA_on_off_Target{
+    my ($title, $seed_length) = @_;
+    
+    my $all_TE = &TE_id_length($title);
+    my ($onTarget_mis0, $onTarget_mis1, $onTarget_mis2, $onTarget_mis3, $offTarget_mis0, $offTarget_mis1, $offTarget_mis2, $offTarget_mis3) = &ProcessIntersectBed ( "${title}_${seed_length}bp_intersect_TE.txt", $TE, $seed_length);
+
+    #ouput on target table
+    open (OUT0, ">${TE}_${seed_length}bp_sgRNA_onTarget_mis0_count.txt") or die$!;
+    open (OUT1, ">${TE}_${seed_length}bp_sgRNA_onTarget_mis1_count.txt") or die$!;
+    open (OUT2, ">${TE}_${seed_length}bp_sgRNA_onTarget_mis2_count.txt") or die$!;
+    open (OUT3, ">${TE}_${seed_length}bp_sgRNA_onTarget_mis3_count.txt") or die$!;
+   
+    #col = sgRNAs; row = all MT2_Mm copies 
+    #print header;
+    print OUT0 "LTR_id\tLength\t";    print OUT1 "LTR_id\tLength\t";    print OUT2 "LTR_id\tLength\t";    print OUT3 "LTR_id\tLength\t";
+    foreach my $sg_id (sort keys %{$onTarget_mis0} ){
+        print OUT0 $sg_id . "\t"; print OUT1 $sg_id . "\t"; print OUT2 $sg_id . "\t"; print OUT3 $sg_id . "\t";
+    }
+    print OUT0 "\n"; print OUT1 "\n"; print OUT2 "\n"; print OUT3 "\n";
+
+    foreach my $te_id (sort keys %{$all_TE}){
+        print OUT0 $te_id . "\t" . $all_TE->{$te_id} . "\t";
+        print OUT1 $te_id . "\t" . $all_TE->{$te_id} . "\t";
+        print OUT2 $te_id . "\t" . $all_TE->{$te_id} . "\t";
+        print OUT3 $te_id . "\t" . $all_TE->{$te_id} . "\t";
+
+        foreach my $sg_id (sort keys %{$onTarget_mis0}){
+            unless ($onTarget_mis0->{$sg_id}->{$te_id}) { $onTarget_mis0->{$sg_id}->{$te_id}=0; }
+            unless ($onTarget_mis1->{$sg_id}->{$te_id}) { $onTarget_mis1->{$sg_id}->{$te_id}=0; }
+            unless ($onTarget_mis2->{$sg_id}->{$te_id}) { $onTarget_mis2->{$sg_id}->{$te_id}=0; }
+            unless ($onTarget_mis3->{$sg_id}->{$te_id}) { $onTarget_mis3->{$sg_id}->{$te_id}=0; }
+
+            #if sgRNA targets with 0 mismatch, it should also be counted into 1, 2, 3 mismatch
+            if ($onTarget_mis0->{$sg_id}->{$te_id} == 1) { $onTarget_mis1->{$sg_id}->{$te_id}=1; $onTarget_mis2->{$sg_id}->{$te_id} = 1; $onTarget_mis3->{$sg_id}->{$te_id} = 1; }
+            if ($onTarget_mis1->{$sg_id}->{$te_id} == 1) { $onTarget_mis2->{$sg_id}->{$te_id}=1; $onTarget_mis3->{$sg_id}->{$te_id} = 1; }
+            if ($onTarget_mis2->{$sg_id}->{$te_id} == 1) { $onTarget_mis3->{$sg_id}->{$te_id}=1; }      
+            
+            print OUT0 $onTarget_mis0->{$sg_id}->{$te_id} . "\t";
+            print OUT1 $onTarget_mis1->{$sg_id}->{$te_id} . "\t";
+            print OUT2 $onTarget_mis2->{$sg_id}->{$te_id} . "\t";
+            print OUT3 $onTarget_mis3->{$sg_id}->{$te_id} . "\t";
+        }
+        print OUT0 "\n"; print OUT1 "\n"; print OUT2 "\n"; print OUT3 "\n";
+    }  
+    close OUT0; close OUT1; close OUT2; close OUT3;
+    
+    #output off target table -> summarize all TE types of off-target for each level of mismatches
+    my (%offtarget_TE_mis0, %offtarget_TE_mis1, %offtarget_TE_mis2, %offtarget_TE_mis3);
+    foreach my $sg_id (sort keys %{$offTarget_mis0} ){
+        foreach my $te_name (sort keys %{ $offTarget_mis0->{$sg_id} } ){
+            $offtarget_TE_mis0{$te_name}->{$sg_id} = $offTarget_mis0->{$sg_id}->{$te_name};
+        }
+    }
+    foreach my $sg_id (sort keys %{$offTarget_mis1} ){
+        foreach my $te_name (sort keys %{ $offTarget_mis1->{$sg_id} } ){
+            $offtarget_TE_mis1{$te_name}->{$sg_id} = $offTarget_mis1->{$sg_id}->{$te_name};
+        }
+    }
+    foreach my $sg_id (sort keys %{$offTarget_mis2} ){
+        foreach my $te_name (sort keys %{ $offTarget_mis2->{$sg_id} } ){
+            $offtarget_TE_mis2{$te_name}->{$sg_id} = $offTarget_mis2->{$sg_id}->{$te_name};
+        }
+    }
+    foreach my $sg_id (sort keys %{$offTarget_mis3} ){
+        foreach my $te_name (sort keys %{ $offTarget_mis3->{$sg_id} } ){
+            $offtarget_TE_mis3{$te_name}->{$sg_id} = $offTarget_mis3->{$sg_id}->{$te_name};
+        }
+    }
+
+    open (OUF0, ">${TE}_${seed_length}bp_sgRNA_offTarget_mis0_count.txt") or die$!;
+    open (OUF1, ">${TE}_${seed_length}bp_sgRNA_offTarget_mis1_count.txt") or die$!;
+    open (OUF2, ">${TE}_${seed_length}bp_sgRNA_offTarget_mis2_count.txt") or die$!;
+    open (OUF3, ">${TE}_${seed_length}bp_sgRNA_offTarget_mis3_count.txt") or die$!;
+
+    #print header;
+    print OUF0 "sg_id\t"; print OUF1 "sg_id\t"; print OUF2 "sg_id\t"; print OUF3 "sg_id\t";
+    foreach my $te_name (sort keys %offtarget_TE_mis0 ){ print OUF0 "$te_name\t"; }
+    foreach my $te_name (sort keys %offtarget_TE_mis1 ){ print OUF1 "$te_name\t"; }
+    foreach my $te_name (sort keys %offtarget_TE_mis2 ){ print OUF2 "$te_name\t"; }
+    foreach my $te_name (sort keys %offtarget_TE_mis3 ){ print OUF3 "$te_name\t"; }
+    print OUF0 "\n"; print OUF1 "\n"; print OUF2 "\n"; print OUF3 "\n";
+
+    foreach my $sg_id (sort keys %{$onTarget_mis0} ){
+        print OUF0 $sg_id . "\t"; print OUF1 $sg_id . "\t"; print OUF2 $sg_id . "\t"; print OUF3 $sg_id . "\t";
+        foreach my $te_name (sort keys %offtarget_TE_mis0){
+            unless ( $offtarget_TE_mis0{$te_name}->{$sg_id} ) { $offtarget_TE_mis0{$te_name}->{$sg_id} = 0; } 
+            print OUF0 $offtarget_TE_mis0{$te_name}->{$sg_id} . "\t"; }
+        
+        foreach my $te_name (sort keys %offtarget_TE_mis1){
+            unless ( $offtarget_TE_mis1{$te_name}->{$sg_id} ) { $offtarget_TE_mis1{$te_name}->{$sg_id} = 0; } 
+            print OUF1 $offtarget_TE_mis1{$te_name}->{$sg_id} . "\t"; }
+
+        foreach my $te_name (sort keys %offtarget_TE_mis2){
+            unless ( $offtarget_TE_mis2{$te_name}->{$sg_id} ) { $offtarget_TE_mis2{$te_name}->{$sg_id} = 0; } 
+            print OUF2 $offtarget_TE_mis2{$te_name}->{$sg_id} . "\t"; }
+
+        foreach my $te_name (sort keys %offtarget_TE_mis3){
+            unless ( $offtarget_TE_mis3{$te_name}->{$sg_id} ) { $offtarget_TE_mis3{$te_name}->{$sg_id} = 0; } 
+            print OUF3 $offtarget_TE_mis3{$te_name}->{$sg_id} . "\t";
+        }
+        print OUF0 "\n"; print OUF1 "\n"; print OUF2 "\n"; print OUF3 "\n";
+    }
+    close OUF0; close OUF1; close OUF2; close OUF3;
+}
+
+sub ProcessIntersectBed {
+    my ($file, $title, $seed_length) = @_;
+    
+    #make two output: 1) On-target of sgRNA on each $TE; 2) Off-target counts for non-$TE
+    open (FILE, "$file") or die$!;
+
+    my (%onTarget_mis0, %onTarget_mis1, %onTarget_mis2, %onTarget_mis3);
+    my (%offTarget_mis0, %offTarget_mis1, %offTarget_mis2, %offTarget_mis3);
+
+    while (my $line = <FILE>){
+        chomp $line;
+        my @split = split ("\t", $line);        
+        
+        #sgRNA id
+        my $sg_id = $split[3];
+        my @tmp = split (/,/, $sg_id); pop(@tmp); $tmp[-1] =~ s/N//g;
+        $sg_id = join (",", @tmp);
+
+        #TE id #chr:pos1-pos2
+        my $te_id = $split[6] . ":" . $split[9] . "-" . $split[10];
+
+        #TE name
+        my @split2 = split (/\s+/, $split[-1]);
+        my $te_name  = $split2[1];
+        $te_name =~ s/[";]//g;
+
+        #on target record
+        if ( $te_name eq $title ){ 
+            if ( $split[4] == 0 ){ $onTarget_mis0{$sg_id}->{$te_id} = 1;  }
+            if ( $split[4] == 1 ){ $onTarget_mis1{$sg_id}->{$te_id} = 1;  }
+            if ( $split[4] == 2 ){ $onTarget_mis2{$sg_id}->{$te_id} = 1;  }
+            if ( $split[4] == 3 ){ $onTarget_mis3{$sg_id}->{$te_id} = 1;  }
+        }
+        
+        #off target record
+        if ( $te_name ne $title ){ 
+            if ( $split[4] == 0 ){ $offTarget_mis0{$sg_id}->{$te_name}++; }
+            if ( $split[4] == 1 ){ $offTarget_mis1{$sg_id}->{$te_name}++; }
+            if ( $split[4] == 2 ){ $offTarget_mis2{$sg_id}->{$te_name}++; }
+            if ( $split[4] == 3 ){ $offTarget_mis3{$sg_id}->{$te_name}++; }
+        }       
+    }   
+    return (\%onTarget_mis0, \%onTarget_mis1, \%onTarget_mis2, \%onTarget_mis3, \%offTarget_mis0, \%offTarget_mis1, \%offTarget_mis2, \%offTarget_mis3);
+}
+
+sub TE_id_length {
+    #return a hash reference: key = TE_id (chr_pos); value = length (bp)
+    my $title = shift @_;
+    my $GTF = "/data/ZYChenlab/Zhiyuan/genomes_annotations/mouse/mm10/annotations/mm10_rmsk_TE.gtf";
+    my $grep = "\'gene_id " . '"' . $title . '"\'';
+
+    system("grep $grep $GTF > mm10_${title}.gtf");    
+    open (GTF, "mm10_${title}.gtf") or die$!;
+    my %hash;
+    while (my $line = <GTF>){
+        chomp $line;
+        my @split = split (/\s+/, $line);
+        my $id = $split[0] . ":" . $split[3] . "-" . $split[4];
+        my $length = $split[4] - $split[3] + 1;
+        $hash{$id} = $length;
+    }
+    return (\%hash);
+}
+
+sub IntersectBed {
+    my ($bed, $title, $seed_length) =  @_;
+    my $TE_GTF = "/data/ZYChenlab/Zhiyuan/genomes_annotations/mouse/mm10/annotations/mm10_rmsk_TE.gtf";
+    system("bedtools intersect -a $bed -b $TE_GTF -wa -wb > ${title}_${seed_length}bp_intersect_TE.txt");
+}
+
+
+sub Cas_OFFinder_to_BED {
+    #convert cas-offinder output to bed
+    #chr  start  end  Name(sgRNAid) Score(#_of_mismatches)  Strand
+          
+    my ($inFile, $title, $seed_length) = @_;
+
+    open (BED, ">${title}_${seed_length}bp_CasOFFinder.bed") or die$!;
+    open (INFILE, "$inFile") or die$!;
+
+    while (my $line = <INFILE>){
+        chomp $line;
+        my ($sgRNA, $chr, $chr2, $start, $ref, $strand, $mismatch) = split (/\s+/, $line);
+        my $end;
+        
+        if ($strand eq '+'){ $end = $start + $seed_length - 1; }
+        if ($strand eq '-'){ $start = $start + 7; $end = $start + $seed_length - 1; }
+        if ($seed_length == 20){    print BED "$chr\t$start\t$end\t$sg20->{$sgRNA},$sgRNA,$ref\t$mismatch\t$strand\n"; }        
+    }
+    close INFILE;
+    close BED;
+}
+
+sub get_id{
+
+        #input as CRISPOR_output (csv)
+        #Also return hash_reference (key = sequence_without_PAM; value = sgRNA_id)
+        #ID (guideID,Doench_score,Moreno-Mateos_score,Graf_motif)
+        #options: 20bp guide
+
+        my ($title, $file, $seed_length, $mismatch) = @_;
+        my %sgRNA;
+        
+        open(IN, $file) or die$!;
+        while (my $line = <IN>){
+                chomp $line;
+                next if $line =~ /(^\#)|(^,)/;
+                next if $line =~ /^</;
+
+                my @split = split(/,/, $line);
+                my $id = $split[0];
+
+                #retrieve seed sequence & add "NGG" PAM
+                my $seq = $split[1];
+                my $gRNA = substr $seq, 20-$seed_length, $seed_length;
+
+                my $Doench = $split[6];
+                $Doench =~ s/NotEnoughFlankSeq/NA/g;
+
+                my $Moreno = $split[13];
+                $Moreno =~ s/NotEnoughFlankSeq/NA/g;
+
+                my $GrafEtAlStatus = $split[18];
+                next if $GrafEtAlStatus =~ "tt";
+                $GrafEtAlStatus =~ s/GrafOK/1/g;
+
+                $id = $id . "," . $Doench . "," . $Moreno . "," . $GrafEtAlStatus;
+                $gRNA = $gRNA . "NNN";
+
+                $sgRNA{$gRNA} = $id;
+        }
+        close IN;
+        return (\%sgRNA);
+}
+```
+
