@@ -1,0 +1,378 @@
+---
+title: "230829 dCas9_ChIP_analyses"
+output: html_notebook
+---
+
+## input mm10 annotations
+```{r input mm10 repeats}
+suppressMessages(library("rtracklayer"))
+
+# import mm10 repeat masker bed file
+mm10_rmsk <- import.bed("/Volumes/ZYChenlab/Zhiyuan/genomes_annotations/mm10/annotations/mm10_rmsk_TE.bed")
+length(mm10_rmsk) #3725827
+
+# get MT2_Mm & MT2C_Mm
+MT2Mm <- mm10_rmsk[grep("MT2_Mm", mm10_rmsk$name),]
+MT2CMm <- mm10_rmsk[grep("MT2C_Mm", mm10_rmsk$name),]
+
+length(MT2Mm) #2667
+length(MT2CMm) #1982
+```
+
+## input narrowPeak
+```{r input narrowPeak}
+# declare names and types for the extra BED columns
+extraCols_narrowPeak <- c(FoldChange="numeric", pVal="numeric",
+qVal="numeric", summit="integer")
+
+#following peak files were input
+CTR_dCas9_peaks <- import.bed("./R_input/ChIP_seq/CTRi_ESCs_Cas9_ChIP_rep1_multi_peaks.narrowPeak",
+                              extraCols=extraCols_narrowPeak)
+CTR_HA_peaks <- import.bed("./R_input/ChIP_seq/CTRi_ESCs_HA_ChIP_rep1_multi_peaks.narrowPeak",
+                           extraCols=extraCols_narrowPeak)
+dCas9_peaks <- import.bed("./R_input/ChIP_seq/Cas9_ChIP_multi_peaks.narrowPeak",
+                          extraCols=extraCols_narrowPeak)
+HA_peaks <- import.bed("./R_input/ChIP_seq/HA_ChIP_multi_peaks.narrowPeak",
+                       extraCols=extraCols_narrowPeak)
+
+length(CTR_dCas9_peaks) #5195
+length(CTR_HA_peaks) #1546
+length(dCas9_peaks) #7529
+length(HA_peaks) #4727
+```
+
+## remove peaks present in dCas9-only group
+```{bash}
+bedtools intersect -a Cas9_ChIP_multi_peaks.narrowPeak -b CTRi_ESCs_Cas9_ChIP_rep1_multi_peaks.narrowPeak -v > Cas9_ChIP_multi_peaks_filtered.narrowPeak
+bedtools intersect -a HA_ChIP_multi_peaks.narrowPeak -b CTRi_ESCs_HA_ChIP_rep1_multi_peaks.narrowPeak -v > HA_ChIP_multi_peaks_filtered.narrowPeak
+bedtools intersect -a Cas9_ChIP_multi_peaks_filtered.narrowPeak -b HA_ChIP_multi_peaks_filtered.narrowPeak > Cas9_HA_overlap.narrowPeak
+```
+
+## overlap between dCas9 and HA ChIP
+```{r overlap between dCas9 & HA peaks}
+dCas9_filtered_peaks <- import.bed("./R_input/ChIP_seq/Cas9_ChIP_multi_peaks_filtered.narrowPeak", 
+                                   extraCols=extraCols_narrowPeak)
+HA_filtered_peaks <- import.bed("./R_input/ChIP_seq/HA_ChIP_multi_peaks_filtered.narrowPeak",
+                                extraCols=extraCols_narrowPeak)
+length(dCas9_filtered_peaks) #5784
+length(HA_filtered_peaks) #4144
+
+dCas9_HA_overlap <- import.bed("./R_input/ChIP_seq/Cas9_HA_overlap.narrowPeak",
+                               extraCols=extraCols_narrowPeak)
+length(dCas9_HA_overlap) #4072
+
+#make a venndiagram.
+suppressMessages(library("VennDiagram"))
+pdf("./figures/230813_vennDiagram_Cas9_HA_peaks.pdf", width = 5, height = 5)
+grid.newpage()                    # Create new plotting page
+draw.pairwise.venn(area1 = 5784,    # Draw pairwise venn diagram
+                   area2 = 4144,
+                   cross.area = 4072,
+                   fill = c("blue", "red"))
+dev.off()
+```
+
+## annnotate overlapped peaks
+```{r load annotation}
+suppressMessages(library(ChIPpeakAnno))
+suppressMessages(library(GenomicFeatures))
+suppressMessages(library(ChIPseeker))
+suppressMessages(library(dplyr))
+suppressMessages(library(ggplot2))
+suppressMessages(library(cowplot))
+suppressMessages(library(ggsci))
+suppressMessages(library(reshape2))
+suppressMessages(library(tidyr))
+source("./utils.R")
+
+mm10_gene_annotation <- makeTxDbFromGFF("/Volumes/ZYChenlab/Zhiyuan/genomes_annotations/mm10/annotations/gencode.vM25.annotation.gtf")
+
+#Annotate peak to gene features
+annotate_peak <- annotatePeak(dCas9_HA_overlap, tssRegion = c(-1000, 500),
+                                    TxDb = mm10_gene_annotation)
+annotate_peak <- as.GRanges(annotate_peak)
+annotate_peak$simpleAnnotation <- simplifyAnnotation(annotate_peak$annotation)
+
+table(annotate_peak$simpleAnnotation)
+#Intergenic Intragenic   Promoter 
+#      2297       1272        471 
+
+MT2Mm_overlap <- findOverlaps(annotate_peak, MT2Mm)
+MT2CMm_overlap <- findOverlaps(annotate_peak, MT2CMm)
+TE_overlap <- findOverlaps(annotate_peak, mm10_rmsk)
+
+annotate_peak$Peaks2 <- "Non_TE"
+annotate_peak$Peaks2[queryHits(TE_overlap)] <- "other_TE"
+annotate_peak$Peaks2[queryHits(MT2CMm_overlap)] <- "MT2C_Mm"
+annotate_peak$Peaks2[queryHits(MT2Mm_overlap)] <- "MT2_Mm"
+
+table(annotate_peak$Peaks2)
+#MT2_Mm  MT2C_Mm   Non_TE other_TE 
+#    2485     1090      207      258 
+
+#replace others with gene annotation
+annotate_peak$Peaks2[which(annotate_peak$Peaks2 == "Non_TE")] <- 
+  annotate_peak$simpleAnnotation[grep("Non_TE", annotate_peak$Peaks2)]
+annotate_peak$Peaks2[which(annotate_peak$Peaks2 == "other_TE")] <-
+  annotate_peak$simpleAnnotation[grep("other_TE", annotate_peak$Peaks2)]
+table(annotate_peak$Peaks2)
+#Intergenic Intragenic     MT2_Mm    MT2C_Mm   Promoter 
+#       166        198       2485       1090        101
+
+df4Pie <- as.data.frame(table(annotate_peak$Peaks2)) %>%
+              mutate(perc = `Freq` / sum(`Freq`)) %>% 
+              mutate(labels = scales::percent(perc))
+pdf("./figures/230813_ChIPpeaks_distribution.pdf", height = 4, width = 4)
+ggplot(df4Pie, aes(x = "", y = perc, fill = Var1)) +
+        geom_col(color = "black") +
+        coord_polar(theta = "y") + 
+        geom_text(aes(label = labels),
+        position = position_stack(vjust = 0.5)) +
+        guides(fill = guide_legend(title = NULL)) +
+        scale_fill_npg() +
+        #geom_label(aes(label = labels), 
+        #           color = rep("black", nrow(df4cas9Pie)),
+        #           position = position_stack(vjust = 0.1),
+        #show.legend = FALSE) + 
+        theme_void() +
+        ggtitle("dCas9 ChIP")
+dev.off()
+```
+## check MT2_Mm/MT2C_Mm peak distribution
+```{r MT2Mm/MT2CMm_peak distribution}
+df4MT2_Pie <- as.data.frame(
+              table(annotate_peak[which(annotate_peak$Peaks2 == "MT2C_Mm" |
+                                        annotate_peak$Peaks2 == "MT2_Mm")]$simpleAnnotation)) %>%
+              mutate(perc = `Freq` / sum(`Freq`)) %>% 
+              mutate(labels = scales::percent(perc))
+
+pdf("./figures/230813_MT2Mm_MT2C_Mm_peaks_distribution.pdf", height = 4, width = 4)
+ggplot(df4MT2_Pie, aes(x = "", y = perc, fill = Var1)) +
+        geom_col(color = "black") +
+        coord_polar(theta = "y") + 
+        geom_text(aes(label = labels),
+        position = position_stack(vjust = 0.5)) +
+        guides(fill = guide_legend(title = NULL)) +
+        scale_fill_npg() +
+        theme_void() +
+        ggtitle("MT2C_Mm/MT2_Mm ChIP peaks")
+dev.off()
+```
+## check off-target enrichment score
+```{r check ChIPsignal detailed groups}
+tmp1 <- data.frame(group = annotate_peak$Peaks2,
+                  ChIP_signal = annotate_peak$FoldChange)
+
+#perform two-sided wilcox test 
+wilcox.test(tmp1[which(tmp1$group == "MT2C_Mm"), 2], 
+            tmp1[which(tmp1$group != "MT2_Mm" & tmp1$group != "MT2C_Mm"), 2],
+            alternative = "two.sided")$p.value
+
+pdf("./figures/230813_ChIPpeaks_enrichment.pdf", height = 4, width = 4)
+ggplot(tmp1, aes(x = group, y = ChIP_signal)) + 
+  #geom_violin(width = 1.2, fill = "grey") +
+  geom_boxplot(color = "black", alpha = 0.2, outlier.color = NA) + 
+  ylim(0, 900) + theme_cowplot(16) +
+  #geom_hline(yintercept= 50, linetype="dashed", color = "red") +
+  scale_x_discrete(limits = c("MT2_Mm","MT2C_Mm", "Promoter", "Intragenic", "Intergenic")) +
+  #                  labels = c("MT2_Mm\nMT2C_Mm peaks\n(3632)", "Others (47121)")) +
+  theme(axis.title.x = element_blank()) +
+  ylab("ChIP enrichment") +
+  ggtitle("dCas9_ChIP")
+dev.off()
+```
+## bound vs unbound TE subfamlies
+Priority list
+MT2_Mm -> MT2C_Mm -> MERVL-int -> MT2B2 -> MT2B -> MT2B1 -> MTA_Mm
+```{r stack plot}
+MT2Mm <- mm10_rmsk[grep("MT2_Mm:ERVL", mm10_rmsk$name),]
+MT2CMm <- mm10_rmsk[grep("MT2C_Mm:ERVL", mm10_rmsk$name),]
+#MERVL_int <- mm10_rmsk[grep("MERVL-int:ERVL", mm10_rmsk$name),]
+MT2B2 <- mm10_rmsk[grep("MT2B2:ERVL", mm10_rmsk$name),]
+MT2B1 <- mm10_rmsk[grep("MT2B1:ERVL", mm10_rmsk$name),]
+MT2B <- mm10_rmsk[grep("MT2B:ERVL", mm10_rmsk$name),]
+MTA_Mm <- mm10_rmsk[grep("MTA_Mm:ERVL", mm10_rmsk$name),]
+
+length(MT2Mm) #2667
+length(MT2CMm) #1982
+length(MT2B2) #3655
+length(MT2B1) #7248
+length(MT2B) #13977
+length(MTA_Mm) #15623
+
+df4boundCas9 <- data.frame(
+  repeats = c("MT2_Mm", "MT2C_Mm",
+              "MT2B2", "MT2B1", "MT2B", "MTA_Mm"),
+  bound = c(
+      length(findOverlaps(annotate_peak, MT2Mm)),
+      length(findOverlaps(annotate_peak, MT2CMm)),
+      length(findOverlaps(annotate_peak, MT2B2)),
+      length(findOverlaps(annotate_peak, MT2B1)),
+      length(findOverlaps(annotate_peak, MT2B)),
+      length(findOverlaps(annotate_peak, MTA_Mm))),
+  total = c(
+      length(MT2Mm), #2612
+      length(MT2CMm), #1941
+      length(MT2B2), #3649
+      length(MT2B1), #6955
+      length(MT2B), #13806
+      length(MTA_Mm)
+  ))
+df4boundCas9$unbound <- df4boundCas9$total - df4boundCas9$bound
+
+df4boundCas9 <- gather(df4boundCas9, key = "group", value = "count", -repeats, -total)
+df4boundCas9$pct <- df4boundCas9$count / df4boundCas9$total *100
+
+pdf("./figures/230813_fractions_bound_by_dCas9.pdf", width = 6, height = 6)
+ggplot(df4boundCas9, aes(x = repeats, y = pct, 
+                           fill = factor(group, levels = c("unbound", "bound")))) + 
+  geom_bar(stat = "identity", position = "fill", color = "black") + 
+  scale_fill_manual(values = c("white", "black")) +
+  scale_x_discrete(limits = c("MT2_Mm","MT2C_Mm", "MT2B2", "MT2B1", "MT2B", "MTA_Mm")) +
+  theme_cowplot(16) +
+  ggtitle("dCas9 ChIP") + 
+  theme(axis.title.x = element_blank(),
+        legend.title=element_blank(),
+        axis.text.x = element_text(angle = 30, vjust = 0.9, hjust=0.9)) +
+  ylab("Fraction bound")
+dev.off()
+```
+## write out table
+```{r}
+write.table(
+  data.frame(seqnames = seqnames(annotate_peak),
+             starts = start(annotate_peak) -1 ,
+             ends = end(annotate_peak),
+             names = annotate_peak$name,
+             scores = annotate_peak$score,
+             strands = strand(annotate_peak),
+             signal = annotate_peak$FoldChange,
+             pVal = annotate_peak$pVal,
+             qVal = annotate_peak$qVal,
+             annotation = annotate_peak$annotation,
+             geneId = annotate_peak$geneId,
+             distanceToTSS = annotate_peak$distanceToTSS,
+             simpleAnnotation = annotate_peak$simpleAnnotation,
+             TE_peaks = annotate_peak$Peaks2
+             ),
+  "./R_output/230813_dCas9_peaks_annotated.txt", quote = F, 
+  sep = "\t", row.names = F, col.names = F
+)
+
+#write out bed file for only MT2_Mm & MT2C_Mm peaks
+annotate_peak_MT2only <- annotate_peak[which(annotate_peak$Peaks2 == "MT2C_Mm" |
+                                        annotate_peak$Peaks2 == "MT2_Mm")]
+annotate_peak_MT2Mm <- annotate_peak[which(annotate_peak$Peaks2 == "MT2_Mm")]
+annotate_peak_MT2CMm <- annotate_peak[which(annotate_peak$Peaks2 == "MT2C_Mm")]
+annotate_peak_offtarget <- annotate_peak[which(annotate_peak$Peaks2 != "MT2C_Mm" &
+                                               annotate_peak$Peaks2 != "MT2_Mm")]
+
+length(annotate_peak) #4040
+length(annotate_peak_MT2only) #3575
+length(annotate_peak_MT2Mm) #2485
+length(annotate_peak_MT2CMm) #1090
+length(annotate_peak_offtarget) #465
+
+write.table(
+  data.frame(seqnames = seqnames(annotate_peak_MT2only),
+             starts = start(annotate_peak_MT2only) -1 ,
+             ends = end(annotate_peak_MT2only),
+             names = annotate_peak_MT2only$Peaks2,
+             scores = annotate_peak_MT2only$score,
+             strands = strand(annotate_peak_MT2only)
+             ),
+  "./R_output/230817_dCas9_MT2Mm_MT2CMm.bed", quote = F, 
+  sep = "\t", row.names = F, col.names = F
+)
+write.table(
+  data.frame(seqnames = seqnames(annotate_peak_MT2Mm),
+             starts = start(annotate_peak_MT2Mm) -1 ,
+             ends = end(annotate_peak_MT2Mm),
+             names = annotate_peak_MT2Mm$Peaks2,
+             scores = annotate_peak_MT2Mm$score,
+             strands = strand(annotate_peak_MT2Mm)
+             ),
+  "./R_output/230817_dCas9_MT2Mm.bed", quote = F, 
+  sep = "\t", row.names = F, col.names = F
+)
+write.table(
+  data.frame(seqnames = seqnames(annotate_peak_MT2CMm),
+             starts = start(annotate_peak_MT2CMm) -1 ,
+             ends = end(annotate_peak_MT2CMm),
+             names = annotate_peak_MT2CMm$Peaks2,
+             scores = annotate_peak_MT2CMm$score,
+             strands = strand(annotate_peak_MT2CMm)
+             ),
+  "./R_output/230817_dCas9_MT2CMm.bed", quote = F, 
+  sep = "\t", row.names = F, col.names = F
+)
+write.table(
+  data.frame(seqnames = seqnames(annotate_peak_offtarget),
+             starts = start(annotate_peak_offtarget) -1 ,
+             ends = end(annotate_peak_offtarget),
+             names = annotate_peak_offtarget$Peaks2,
+             scores = annotate_peak_offtarget$score,
+             strands = strand(annotate_peak_offtarget)
+             ),
+  "./R_output/230817_dCas9_offtarget.bed", quote = F, 
+  sep = "\t", row.names = F, col.names = F
+)
+```
+
+```{bash add strand to bed}
+#The above bed file has no strand info for MT2_Mm & MT2C_Mm
+#add strand using following command lines
+module load bedtools
+grep MT2_Mm /data/ZYChenlab/Zhiyuan/genomes_annotations/mm10/annotations/mm10_rmsk_TE.bed > mm10_MT2Mm_MT2CMm.bed
+grep MT2C_Mm /data/ZYChenlab/Zhiyuan/genomes_annotations/mm10/annotations/mm10_rmsk_TE.bed >> mm10_MT2Mm_MT2CMm.bed
+bedtools intersect -a mm10_MT2Mm_MT2CMm.bed -b 230817_dCas9_MT2Mm_MT2CMm.bed -wa > 230817_MT2Mm_MT2CMm_boundbyCas9.bed
+```
+
+## deeptool heatmap
+```{bash deeptool enrichment}
+#!/bin/bash
+#BSUB -W 1:00
+#BSUB -n 2
+#BSUB -M 10000
+#BSUB -e %J.err
+#BSUB -o %J.out
+
+module load bedtools/2.30.0
+source ~/.bash_profile
+conda activate deeptools
+
+te1="MT2_Mm"
+te2="MT2C_Mm"
+
+te_gtf="/data/ZYChenlab/Zhiyuan/genomes_annotations/mm10/annotations/mm10_rmsk_TE.gtf"
+
+grep ${te1} $te_gtf > ${te1}.gtf
+grep ${te2} $te_gtf > ${te2}.gtf
+
+dcas9_uniq_bw="./bigwigs/MT2Mmi_ESCs_Cas9_ChIP_rep1_mm10.sorted.Q30.dedup.bw"
+dcas9_multi_bw="./bigwigs/MT2Mmi_ESCs_Cas9_ChIP_rep1_mm10.sorted.multi.dedup.bw"
+HA_uniq_bw="./bigwigs/MT2Mmi_ESCs_HA_ChIP_rep1_mm10.sorted.Q30.dedup.bw"
+HA_multi_bw="./bigwigs/MT2Mmi_ESCs_HA_ChIP_rep1_mm10.sorted.multi.dedup.bw"
+
+#computeMatrix--------------------
+computeMatrix scale-regions \
+		-S $dcas9_uniq_bw $dcas9_multi_bw $HA_uniq_bw $HA_multi_bw \
+		-R ${te1}.gtf ${te2}.gtf \
+		-a 2000 -b 2000 \
+		--outFileName ${te1}.${te2}.2000flank_mat.gz \
+		--sortRegions 'descend' \
+		--samplesLabel 'dCas9 (uniq)' 'dcas9 (multi)' 'HA (uniq)' 'HA (multi)' \
+		--transcriptID 'exon' \
+		--missingDataAsZero
+
+plotHeatmap --matrixFile ${te1}.${te2}.2000flank_mat.gz \
+		    --outFileName 230716_${te1}.${te2}_2000flank.pdf \
+		    --dpi 300 \
+	    	    --sortRegions "descend" \
+	  	    --colorMap "Blues" \
+		    --outFileSortedRegions ${te1}.${te2}_1000flank.bed \
+		    --whatToShow "heatmap and colorbar" \
+		    --boxAroundHeatmaps no \
+		    --samplesLabel 'dCas9 (uniq)' 'dcas9 (multi)' 'HA (uniq)' 'HA (multi)' \
+	            --legendLocation "lower-center"
+```
