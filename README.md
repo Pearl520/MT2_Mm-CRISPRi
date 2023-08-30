@@ -15,3 +15,7 @@
 ### "230829_main2_dCas9_ChIP_analyses.Rmd"
 
   R notebook for dCas9/HA ChIP-seq analyses: peak filtering, annotation, overlap with repeats, and deeptool heatmap, etc
+
+### "230829_main3_CRISPRi_total_RNAseq_analyses.Rmd"
+
+  R notebook for RNA-seq QC, differential gene/repeat expression analyses
