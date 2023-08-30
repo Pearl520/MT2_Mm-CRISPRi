@@ -1,0 +1,1242 @@
+---
+title: "230829_main3_CRISPRi_total_RNAseq_analyses"
+output: html_notebook
+---
+
+### Input datasets
+  
+Sample           | # of embryos |     Group        
+-----------------|--------------|------------------
+CTRi_e2c_1       | 6            | dCas9-KRAB (100ng/ul) + CTR sgRNA (60ng/ul) (~20hpi)
+CTRi_e2c_2       | 7            | dCas9-KRAB (100ng/ul) + CTR sgRNA (60ng/ul) (~20hpi)
+MT2_Mmi_e2c_1    | 8            | dCas9-KRAB (100ng/ul) + MT2_Mm 6xsgRNA (60ng/ul, 10ng/ul each) (~28hpi)
+MT2_Mmi_e2c_2    | 5            | dCas9-KRAB (100ng/ul) + MT2_Mm 6xsgRNA (60ng/ul, 10ng/ul each) (~28hpi)
+                 |              |
+noninj_2c_1      | 10           | Non-injected 2-cell embryos (~28hpi)
+noninj_2c_2      | 10           | Non-injected 2-cell embryos (~28hpi)
+CTRi_2c_1        | 10           | dCas9-KRAB (100ng/ul) + CTR sgRNA (60ng/ul) (~28hpi)
+CTRi_2c_2        | 10           | dCas9-KRAB (100ng/ul) + CTR sgRNA (60ng/ul) (~28hpi)
+CTRi_2C_3        | 10           | dCas9-KRAB (100ng/ul) + CTR sgRNA (60ng/ul) (~28hpi)
+MT2_Mmi_2c_1     | 10           | dCas9-KRAB (100ng/ul) + MT2_Mm 6xsgRNA (60ng/ul, 10ng/ul each) (~28hpi)
+MT2_Mmi_2c_2     | 10           | dCas9-KRAB (100ng/ul) + MT2_Mm 6xsgRNA (60ng/ul, 10ng/ul each) (~28hpi)
+MT2_Mmi_2c_3     | 10           | dCas9-KRAB (100ng/ul) + MT2_Mm 6xsgRNA (60ng/ul, 10ng/ul each) (~28hpi)
+                 |              |
+CTRi_4c_1        | 7            | dCas9-KRAB (100ng/ul) + CTR sgRNA (60ng/ul) (~44hpi)
+CTRi_4c_2        | 6            | dCas9-KRAB (100ng/ul) + CTR sgRNA (60ng/ul) (~44hpi)
+MT2_Mmi_4c_1     | 6            | dCas9-KRAB (100ng/ul) + MT2_Mm 6xsgRNA (60ng/ul, 10ng/ul each) (~44hpi)
+MT2_Mmi_4c_2     | 6            | dCas9-KRAB (100ng/ul) + MT2_Mm 6xsgRNA (60ng/ul, 10ng/ul each) (~44hpi)
+                 |              |
+CTRi_8c_1        | 7            | dCas9-KRAB (100ng/ul) + CTR sgRNA (60ng/ul) (~54hpi)
+CTRi_8c_2        | 7            | dCas9-KRAB (100ng/ul) + CTR sgRNA (60ng/ul) (~54hpi)
+MT2_Mmi_8c_1     | 7            | dCas9-KRAB (100ng/ul) + MT2_Mm 6xsgRNA (60ng/ul, 10ng/ul each) (~54hpi)
+MT2_Mmi_8c_2     | 5            | dCas9-KRAB (100ng/ul) + MT2_Mm 6xsgRNA (60ng/ul, 10ng/ul each) (~54hpi) 
+
+*Note that all libraries were generated using Takara SMART-Seq Stranded for total RNA-seq kit.\  
+
+*Note that all libraries were sequenced using NovaSeq platform (2 x 150bp).\     
+
+*For all samples, 1ul of 1/10000 ERCC mix was spiked in as external control for some of the comparisons.\  
+
+### Mapping stats
+Sample        | Raw reads  | Trimmed    | Uniq reads (%)    |  ERCC reads (%) | dCas9 reads (%) 
+--------------|------------|------------|--------------------------------------------------------     
+CTRi_e2c_1    | 56,264,655 | 56,220,607 | 36,916,516 (65.66) | 313,943 (0.56) | 211,237 (0.38)
+MT2_Mmi_e2c_1 | 57,064,618 | 57,015,460 | 37,489,567 (65.75) | 293,593 (0.51) | 241,157 (0.42)
+CTRi_e2c_2    | 61,565,968 | 61,510,918 | 39,978,176 (64.99) | 370,534 (0.60) | 242,886 (0.39)
+MT2_Mmi_e2c_2 | 55,483,717 | 55,433,941 | 36,844,572 (66.47) | 417,234 (0.75) | 225,462 (0.41)
+
+noninj_2c_1   | 50,960,303 | 50,907,922 | 29,735,840 (58.41) | 208,429 (0.41) |      19 (0.00)
+noninj_2c_2   | 48,807,885 | 48,752,609 | 27,933,848 (57.30) | 185,830 (0.38) |      32 (0.00)
+CTRi_2c_1     | 57,251,858 | 57,186,484 | 32,266,499 (56.42) | 214,729 (0.38) |  99,643 (0.17)
+CTRi_2c_2     | 58,154,450 | 58,093,503 | 30,507,803 (52.51) | 201,724 (0.35) | 102,736 (0.18)
+CTRi_2C_3     | 59,477,574 | 59,418,849 | 34,125,720 (57.43) | 249,430 (0.42) | 126,410 (0.21)
+MT2_Mmi_2c_1  | 52,395,776 | 52,344,556 | 31,585,769 (60.34) | 283,126 (0.54) | 175,147 (0.33)
+MT2_Mmi_2c_2  | 60,152,475 | 60,107,555 | 35,143,171 (58.47) | 273,946 (0.46) | 141,915 (0.24)
+MT2_Mmi_2c_3  | 51,682,814 | 51,649,863 | 32,853,234 (63.61) | 261,345 (0.51) | 148,397 (0.29)
+              |            |            |                    |                |
+CTRi_4c_1     | 51,454,863 | 51,406,446 | 30,967,557 (60.24) | 350,919 (0.68) |  80,571 (0.16)
+CTRi_4c_2     | 61,651,998 | 61,586,994 | 36,637,709 (59.49) | 515,401 (0.84) |  93,302 (0.15)
+MT2_Mmi_4c_1  | 37,290,351 | 37,253,765 | 21,350,200 (57.31) | 502,195 (1.35) |  74,417 (0.20)
+MT2_Mmi_4c_2  | 47,093,525 | 47,051,083 | 26,867,352 (57.10) | 536,221 (1.14) | 110,291 (0.23)
+              |            |            |                    |                |
+CTRi_8c_1     | 53,599,239 | 53,550,632 | 34,794,391 (64.97) | 309,387 (0.57) |  52,757 (0.10)
+CTRi_8c_2     | 51,032,280 | 50,983,788 | 32,530,858 (63.81) | 273,268 (0.54) |  59,646 (0.12)
+MT2_Mmi_8c_1  | 50,508,237 | 50,461,407 | 31,571,535 (62.57) | 364,596 (0.72) |  61,298 (0.12)
+MT2_Mmi_8c_2  | 47,501,105 | 47,462,580 | 29,897,189 (62.99) | 454,521 (0.96) |  58,057 (0.12)
+
+### input data
+
+```{r input our data}
+source("./utils.R")
+
+#Sample info
+sampleName <- c("CTRi_e2C_RNA_rep1", "CTRi_e2C_RNA_rep2",
+                "MT2Mmi_e2C_RNA_rep1", "MT2Mmi_e2C_RNA_rep2",
+                "Noninj_2C_RNA_rep1", "Noninj_2C_RNA_rep2",
+                "CTRi_2C_RNA_rep1", "CTRi_2C_RNA_rep2", "CTRi_2C_RNA_rep3",
+                "MT2Mmi_2C_RNA_rep1", "MT2Mmi_2C_RNA_rep2", "MT2Mmi_2C_RNA_rep3",
+                "CTRi_4C_RNA_rep1", "CTRi_4C_RNA_rep2",
+                "MT2Mmi_4C_RNA_rep1", "MT2Mmi_4C_RNA_rep2",
+                "CTRi_8C_RNA_rep1", "CTRi_8C_RNA_rep2",
+                "MT2Mmi_8C_RNA_rep1", "MT2Mmi_8C_RNA_rep2")
+
+simpleName <- c("CTRi_e2c_1", "CTRi_e2c_2",
+                "MT2_Mmi_e2c_1", "MT2_Mmi_e2c_2",
+                "noninj_2c_1", "noninj_2c_2",
+                "CTRi_2c_1", "CTRi_2c_2", "CTRi_2c_3",
+                "MT2_Mmi_2c_1", "MT2_Mmi_2c_2", "MT2_Mmi_2c_3",
+                "CTRi_4c_1", "CTRi_4c_2",
+                "MT2_Mmi_4c_1", "MT2_Mmi_4c_2",
+                "CTRi_8c_1", "CTRi_8c_2",
+                "MT2_Mmi_8c_1", "MT2_Mmi_8c_2")
+
+#input data
+counts <- inputTEcountfiles(sampleName, paste0(simpleName, ".count"), 
+                            countDataPath = "./R_input/MT2_Mmi_TEcount/")
+
+rpkm <- inputStringTieRPKMfiles(sampleName, paste0(simpleName, ".rpkm"),
+                                RPKMDataPath = "./R_input/MT2_Mmi_FPKM/")
+
+ERCC_counts <- inputTEcountfiles(sampleName, paste0(simpleName, ".count"),
+                                 countDataPath = "./R_input/MT2_Mmi_ERCCcount/")
+
+write.csv(rpkm, "./R_output/230820_MT2_Mmi_fpkm.csv", quote = F, row.names = F)
+```
+
+```{r input zhang data}
+#input GSE169632 TEcount data
+#GSE169632 generated totalRNAseq data for MII, 1C (12hpi), 2C(30hpi), 4C(48hpi), morula(72hpi) and blastocyst(96hpi)
+#The same library construction method was used. Only difference is 2x75bp.
+#Use this public dataset as baseline to check the data quality.
+
+#this data does not have early 2C RNAseq
+#thus I downloaded early2C data from GSE207222 (same sequencing length and library preparation method)
+
+zhang_sampleName <- c("MII_total_rep1", "MII_total_rep2",
+                      "total_1c_rep1", "total_1c_rep2",
+                      "e2C_total_rep1", "e2C_total_rep2", #Wang data
+                      "total_2c_rep1", "total_2c_rep2",
+                      "total_4c_rep1", "total_4c_rep2",
+                      "total_morula_rep1", "total_morula_rep2",
+                      "total_BL_rep1", "total_BL_rep2")
+zhang_simpleName <- c("MII_1", "MII_2",
+                      "total_1c_1", "total_1c_2",
+                      "total_e2c_1", "total_e2c_2",
+                      "total_2c_1", "total_2c_2",
+                      "total_4c_1", "total_4c_2",
+                      "total_mor_1", "total_mor_2",
+                      "total_BL_1", "total_BL_2")
+zhang_counts <- inputTEcountfiles(zhang_sampleName, paste0(zhang_simpleName, ".count"), 
+                            countDataPath = "./R_input/Zhang_Wang_TEcount/")
+
+zhang_fpkm <- inputStringTieRPKMfiles(zhang_sampleName, paste0(zhang_simpleName, ".rpkm"),
+                                RPKMDataPath = "./R_input/Zhang_Wang_FPKM/")
+write.csv(zhang_fpkm, "./R_output/230821_zhang_fpkm.csv", quote = F, row.names = F)
+
+zhang_fpkm$MII <- (zhang_fpkm$MII_1.rpkm + zhang_fpkm$MII_2.rpkm) / 2
+zhang_fpkm$c1 <- (zhang_fpkm$total_1c_1.rpkm + zhang_fpkm$total_1c_2.rpkm) / 2
+zhang_fpkm$e2c <- (zhang_fpkm$total_e2c_1.rpkm + zhang_fpkm$total_e2c_2.rpkm ) / 2
+zhang_fpkm$l2c <- (zhang_fpkm$total_2c_1.rpkm + zhang_fpkm$total_2c_2.rpkm) / 2
+
+zhang_fpkm$l2c_MII_fc <- log2(zhang_fpkm$l2c + 0.01) - log2(zhang_fpkm$MII + 0.01)
+zhang_fpkm$c1_MII_fc <- log2(zhang_fpkm$c1 + 0.01) - log2(zhang_fpkm$MII + 0.01)
+zhang_fpkm$e2c_MII_fc <- log2(zhang_fpkm$e2c + 0.01) - log2(zhang_fpkm$MII + 0.01)
+
+#230803 Define major ZGA genes 
+#MII, FPKM < 5, late 2C FPKM > 5 & FC > 3
+#or 
+#MII, FPKM > 5, late 2C FC > 5
+zhang_fpkm$majorZGA <- rep("non_majorZGA", nrow(zhang_fpkm))
+
+for(i in 1:nrow(zhang_fpkm)){
+  if(zhang_fpkm$MII[i] <= 5){
+    if(zhang_fpkm$l2c[i] > 5 & zhang_fpkm$l2c_MII_fc[i] > log2(3)){
+      zhang_fpkm$majorZGA[i] <- "majorZGA"
+    }  
+  } else if (zhang_fpkm$l2c_MII_fc[i] > log2(5)){
+      zhang_fpkm$majorZGA[i] <- "majorZGA"
+  }
+}
+nrow(zhang_fpkm[which(zhang_fpkm$majorZGA == "majorZGA"), ]) #1989
+
+majorZGA <- zhang_fpkm[which(zhang_fpkm$majorZGA == "majorZGA"), ]
+#boxplot(log2(mZGA$MII+0.01), log2(mZGA$l2c+0.01))
+write.table(majorZGA, 
+            "./R_output/230803_zhang_majorZGA.csv", 
+            sep = ",", quote = F, row.names = F)
+
+#230817 Define minor ZGA genes
+#MII, FPKM < 5, 1C FPKM > 5 & FC > 3
+#or
+#MII, FPKM > 5, 1C / e2C FC > 5
+zhang_fpkm$minorZGA <- rep("non_minorZGA", nrow(zhang_fpkm))
+
+for(i in 1:nrow(zhang_fpkm)){
+  if(zhang_fpkm$MII[i] <= 5){
+      if(zhang_fpkm$c1[i] > 5 & zhang_fpkm$c1_MII_fc[i] > log2(3)){
+        zhang_fpkm$minorZGA[i] <- "minorZGA"
+      } else if (zhang_fpkm$e2c[i] > 5 & zhang_fpkm$e2c_MII_fc[i] > log2(3)){
+        zhang_fpkm$minorZGA[i] <- "minorZGA"
+      }
+  } else if (zhang_fpkm$e2c_MII_fc[i] > log2(5)){
+      zhang_fpkm$minorZGA[i] <- "minorZGA"
+  } else if (zhang_fpkm$c1_MII_fc[i] > log2(5)){
+      zhang_fpkm$minorZGA[i] <- "minorZGA"
+  }
+}
+nrow(zhang_fpkm[which(zhang_fpkm$minorZGA == "minorZGA"), ]) #717
+
+minorZGA <- zhang_fpkm[which(zhang_fpkm$minorZGA == "minorZGA"), ]
+#boxplot(log2(mZGA$MII+0.01), log2(mZGA$l2c+0.01))
+write.table(minorZGA, 
+            "./R_output/230817_zhang_minorZGA.csv", 
+            sep = ",", quote = F, row.names = F)
+
+#230817 Define maternal genes
+#MII FPKM > 5 & latec < -log2(3)
+zhang_fpkm$maternal_gene <- rep("non_maternalGene", nrow(zhang_fpkm))
+
+for(i in 1:nrow(zhang_fpkm)){
+  if(zhang_fpkm$MII[i] > 5){
+    if(zhang_fpkm$l2c_MII_fc[i] < -log2(3)){
+      zhang_fpkm$maternal_gene[i] <- "maternal_gene"
+    }
+  }
+}
+nrow(zhang_fpkm[which(zhang_fpkm$maternal_gene == "maternal_gene"), ]) #2768
+
+maternal_gene <- zhang_fpkm[which(zhang_fpkm$maternal_gene == "maternal_gene"), ]
+#boxplot(log2(mZGA$MII+0.01), log2(mZGA$l2c+0.01))
+write.table(maternal_gene, 
+            "./R_output/230817_zhang_maternal_gene.csv", 
+            sep = ",", quote = F, row.names = F)
+
+#make heatmap to illustrate minor, major ZGA, and maternal genes
+pdf("./figures/230821_minor_majorZGA_maternalGene_heatmap.pdf", 
+    height = 6, width = 5)
+suppressMessages(require(pheatmap))
+pheatmap(as.matrix(log2(minorZGA[, c(3:10)]+0.01)), scale = "row", 
+         cluster_cols = F, treeheight_row = 0, show_rownames = F,
+         color = colorRampPalette(rev(c("red", "white", "blue")))(400), 
+         breaks = seq(-2, 2, by = 0.01))
+pheatmap(as.matrix(log2(majorZGA[, c(3:10)]+0.01)), scale = "row", 
+         cluster_cols = F, treeheight_row = 0, show_rownames = F,
+         color = colorRampPalette(rev(c("red", "white", "blue")))(400), 
+         breaks = seq(-2, 2, by = 0.01))
+pheatmap(as.matrix(log2(maternal_gene[, c(3:10)]+0.01)), scale = "row", 
+         cluster_cols = F, treeheight_row = 0, show_rownames = F,
+         color = colorRampPalette(rev(c("red", "white", "blue")))(400), 
+         breaks = seq(-2, 2, by = 0.01))
+# boxplot(log2(majorZGA[, c(3:10)]+0.01))
+# boxplot(log2(minorZGA[, c(3:10)]+0.01))
+# boxplot(log2(maternal_gene[, c(3:10)]+0.01))
+dev.off()
+```
+
+### Overall QC analyses
+
+#### Correlation matrix heatmap 
+
+To check whether replicates are highly correlated.
+
+```{r correlationHeatmap}
+suppressMessages(library(reshape2))
+suppressMessages(library(ggplot2))
+suppressMessages(library(cowplot))
+
+logrpkm <- log2(rpkm[, c(3:ncol(rpkm))] + 0.1)
+logrpkmCor <- round(cor(logrpkm), 3)
+logrpkmMelted <- melt(logrpkmCor)
+
+theme <- theme(
+  panel.grid.major.y = element_line(),
+  panel.grid.major.x = element_line(),
+  panel.grid.minor.x = element_line(),
+  panel.grid.minor.y = element_blank(),
+  panel.background = element_rect(fill="white"),
+  axis.text.x = element_text(colour = "black", size = rel(1.5), angle = 90),  #size of x axis
+  axis.text.y = element_text(colour = "black", size = rel(1.5)),  #size of y axis
+  axis.title.y = element_blank(),
+  axis.title.x = element_blank(),
+  panel.border = element_rect(colour="black", fill=NA, size=0.5)
+)
+
+fig1 <- ggplot(data = logrpkmMelted, aes(Var1, Var2, fill = value)) +
+  geom_tile (color = "white") + 
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0.8, 
+                       limit = c(0.6, 1), space = 'Lab', name = "Pearson\nCorrelation") + 
+  theme
+fig1
+
+#focus on only 2C
+logrpkmMelted_2C <- logrpkmMelted[grep("2c", logrpkmMelted$Var1),]
+logrpkmMelted_2C <- logrpkmMelted_2C[grep("2c", logrpkmMelted_2C$Var2),]
+fig1_1 <- ggplot(data = logrpkmMelted_2C, aes(Var1, Var2, fill = value)) +
+  geom_tile (color = "white") + 
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0.9, 
+                       limit = c(0.8, 1), space = 'Lab', name = "Pearson\nCorrelation") + 
+  theme
+fig1_1
+pdf(file = paste0("./figures/230815_MT2_Mmi_totalRNAseq_correation_heatmap.pdf"), 
+    width = 8, height = 6)
+fig1
+fig1_1
+dev.off()
+```
+#### PCA analyses
+
+To check whether embryos were collected at correct timing points by comparing to public datasets. Note that sample collection timing and sequencing platforms are different, which may have batch effects.
+
+```{r normalization}
+suppressMessages(library(DESeq2))
+suppressMessages(library(cowplot))
+suppressMessages(library(ggrepel))
+min_read <-10
+
+#merge our counts and zhang counts
+all_counts <- merge(counts, zhang_counts, by = "id")
+
+all_counts <- all_counts[apply(all_counts[, c(2:ncol(all_counts))],1,function(x){sum(x)}) > min_read,]
+
+#randomly divided samples into two groups for normalization
+group1_num <- round((ncol(all_counts)-1)/2)
+group2_num <- ncol(all_counts) - 1 - group1_num
+groups <- factor(c(rep("CGroup", group1_num),rep("TGroup", group2_num)))
+
+sampleInfo <- data.frame(groups, row.names = colnames(all_counts)[2:ncol(all_counts)])
+row.names(all_counts) <- all_counts$id
+
+dds <- DESeqDataSetFromMatrix(countData = all_counts[2:ncol(all_counts)], 
+                              colData = sampleInfo, design = ~ groups)
+dds <- DESeq(dds)
+
+#normalized counts obtained based on DESeq2 "plotCounts" source code
+normCounts <- counts(dds, normalized = TRUE)
+
+write.csv(x = normCounts, file = "./R_output/230820_MT2Mm_zhang_data_normalizedCounts.csv",
+          quote = F, row.names = F)
+
+#PCA
+pca <- prcomp(t(normCounts), center = TRUE,  scale. = TRUE)
+
+group <- c("CTRi", "CTRi", #e2C
+           "MT2_Mmi", "MT2_Mmi", #e2C
+           "noninj", "noninj", #2C
+           "CTRi", "CTRi", "CTRi", #2C
+           "MT2_Mmi", "MT2_Mmi", "MT2_Mmi", #2C
+           "CTRi", "CTRi",  #4C
+           "MT2_Mmi", "MT2_Mmi", #4C
+           "CTRi", "CTRi", #8C
+           "MT2_Mmi", "MT2_Mmi", #8C
+           "MII", "MII",
+           "Late 1C", "Late 1C",
+           "Early2C", "Early2C",
+           "Late 2C", "Late 2C",
+           "4C", "4C",
+           "Morula", "Morula", 
+           "Blastocyst", "Blastocyst")
+
+group <- factor(group, levels = unique(group))
+
+df4pca <- as.data.frame(pca$x)
+df4pca$stage <- group
+
+fig2 <- ggplot(df4pca) + 
+  geom_point(aes(x = PC1, y = PC2, color = stage), size = 4) +
+  geom_text_repel(aes(x = PC1, y = PC2, label = stage), 
+                  size = 3, segment.size = 0.3, segment.color = "black",
+                  direction = "y", nudge_y = -4.5, nudge_x =-3.5,
+                  point.padding = 0.25, box.padding = 0.15) +
+  theme_cowplot(16) +
+  theme(legend.position="none")
+fig2
+
+pdf(file = paste0("./figures/230815_PCA_plot_with_zhang_data.pdf"), width = 8, height = 6)
+fig2
+dev.off()
+```
+#### Expression of dCas9
+
+To check whether dCas9-KRAB mRNA were injected equally between different groups.
+
+```{r dCas9 expression}
+df4dCas9 <- data.frame(
+  sample = simpleName,
+  libsize = colSums(counts[2:ncol(counts)]),
+  #ERCC_counts = colSums(ERCC_counts[2:ncol(counts)])/2,
+  ERCC_count = c(313943, 370534, 293593, 417234,
+                 208429, 185830, 214729, 201724, 249430, 283126, 273946, 
+                 261345, 350919, 515401, 502195, 536221, 309387, 273268, 364596, 454521),
+  dCas9_count = c(211237, 242886, 241157, 225462,
+                  19, 32, 99643, 102736, 126410, 175147, 141915, 148397,
+                  80571, 93302, 74417, 110291, 52757, 59646, 61298, 58057)
+)
+df4dCas9$Ratio2ERCC <- df4dCas9$dCas9_count / df4dCas9$ERCC_count 
+
+#df4dCas9$sample <- factor(df4dCas9$sample, levels = df4dCas9$sample)
+fig3 <- ggplot(df4dCas9[c(5:12),], aes(x = (sample), y = Ratio2ERCC)) + 
+  geom_bar(stat="identity") + theme_cowplot(16) +
+  scale_x_discrete(limits=df4dCas9[c(5:12),]$sample,
+                   labels = c("Noninj_1", "Noninj_2",
+                              "CTRi_1", "CTRi_2", "CTRi_3",
+                              "MT2_Mmi_1", "MT2_Mmi_2", "MT2_Mmi_3")) +
+  theme(axis.text.x = element_text(angle = 30, vjust = 0.9, hjust=0.9)) +
+  xlab(NULL) + ylab("Normalized to ERCC spike-in") +
+  ggtitle("dCas9-KRAB read counts (2C)")
+fig3
+
+pdf(file = paste0("./figures/230815_dCas9-KRAB_read_counts_2C.pdf"), 
+    width = 6, height = 4)
+fig3
+dev.off()
+```
+
+#### Non-specific dCas9_KRAB analyses (non-spike-in)
+
+To check whether dCas9_KRAB has non-specific global repression effect.\  
+This can be achieved by comparing non-injected vs. CTRi\.  
+This should also be done by using spike-in vs. non-spike-in normalization.\ 
+
+```{r DEG CTR vs. noninj non-spike-in}
+foldchange <- 3
+
+row.names(counts) <- counts$id
+
+suppressMessages(
+  CTR_noninj_DESeq <- countsToDEseq2FDR(counts = counts[, c("noninj_2c_1.count", "noninj_2c_2.count",
+                                                     "CTRi_2c_1.count", "CTRi_2c_2.count", "CTRi_2c_3.count")], 
+                                 CGroup = 2, TGroup = 3)
+)
+
+#merge to rpkm table
+CTR_noninj_DESeq_rpkm <- merge(CTR_noninj_DESeq[, c("id", "noninj_2c_1.count", 
+                                      "noninj_2c_2.count", "CTRi_2c_1.count", 
+                                      "CTRi_2c_2.count", "CTRi_2c_3.count",
+                                      "log2FoldChange", "padj")], 
+                               rpkm[, c("id", "name", 
+                                        "noninj_2c_1.rpkm", "noninj_2c_2.rpkm",
+                                        "CTRi_2c_1.rpkm", "CTRi_2c_2.rpkm", "CTRi_2c_3.rpkm")], 
+                               by = "id")
+CTR_noninj_DESeq_rpkm$padj[is.na(CTR_noninj_DESeq_rpkm$padj)] <- 1
+
+#classify DEGs
+CTR_noninj_DESeq_rpkm.group <- classifyDEG(
+                            CTR_noninj_DESeq_rpkm,
+                            ctr.rpkm = c("noninj_2c_1.rpkm", "noninj_2c_2.rpkm"),
+                            trt.rpkm = c("CTRi_2c_1.rpkm", "CTRi_2c_2.rpkm", "CTRi_2c_3.rpkm"),
+                            FDR.col = "padj", log2FC.col = "log2FoldChange", 
+                            RPKM = 1, log2FC = log2(foldchange), FDR = 0.05)
+
+CTR_noninj_DESeq_rpkm <- cbind(CTR_noninj_DESeq_rpkm, CTR_noninj_DESeq_rpkm.group)
+  
+CTR_noninj_DESeq_rpkm.up <- CTR_noninj_DESeq_rpkm[CTR_noninj_DESeq_rpkm.group == "up-regulated",]
+CTR_noninj_DESeq_rpkm.down <- CTR_noninj_DESeq_rpkm[CTR_noninj_DESeq_rpkm.group == "down-regulated",]
+CTR_noninj_DESeq_rpkm.detectable <- CTR_noninj_DESeq_rpkm[CTR_noninj_DESeq_rpkm.group != "low_expression_level",]
+ 
+nrow(CTR_noninj_DESeq_rpkm.up) #0
+nrow(CTR_noninj_DESeq_rpkm.down) #0
+nrow(CTR_noninj_DESeq_rpkm.detectable) #11910
+
+#plotting
+CTR_noninj_DESeq_rpkm$log2noninj <- log2(
+        (CTR_noninj_DESeq_rpkm$noninj_2c_1.count + CTR_noninj_DESeq_rpkm$noninj_2c_2.count)/2 + 1)
+CTR_noninj_DESeq_rpkm$log2CTR <- log2(
+        (CTR_noninj_DESeq_rpkm$CTRi_2c_1.count + CTR_noninj_DESeq_rpkm$CTRi_2c_2.count +
+         CTR_noninj_DESeq_rpkm$CTRi_2c_3.count)/3 + 1) 
+CTR_noninj_DESeq_rpkm.up.label <- paste0("Up-regulated:\n", nrow(CTR_noninj_DESeq_rpkm.up),
+                                  " (", format(round(nrow(CTR_noninj_DESeq_rpkm.up)/nrow(CTR_noninj_DESeq_rpkm.detectable)*100, 2), 
+                                               nsmall = 2), "%)")
+CTR_noninj_DESeq_rpkm.down.label <- paste0("Down-regulated:\n", nrow(CTR_noninj_DESeq_rpkm.down),
+                                  " (", format(round(nrow(CTR_noninj_DESeq_rpkm.down)/nrow(CTR_noninj_DESeq_rpkm.detectable)*100, 2), 
+                                               nsmall = 2), "%)")
+
+fig4 <- ggScatterplot(CTR_noninj_DESeq_rpkm, x = "log2noninj", y = "log2CTR",
+                      group = "CTR_noninj_DESeq_rpkm.group", gene = "name", xlab = "Non-injected 2C",
+                      ylab = "CTRi (2C)",
+                      title = "CTRi vs non-injected (2C) (non-spikein normalization)",
+                      label.up = CTR_noninj_DESeq_rpkm.up.label, 
+                      label.down = CTR_noninj_DESeq_rpkm.down.label,
+                      genes4Label = c(
+                        "Zfp809","Zscan4c", "Zfp352", "Tpt1"),
+                      FC.line = foldchange,
+                       my.color=c("grey50", "grey50", "red3"))
+fig4
+
+pdf(file = paste0("./figures/230815_DEGs_analyses_CTRi_vs_noninj_non_spike-in_normalization.pdf"), width = 6, height = 5)
+fig4
+dev.off()
+```
+
+#### Non-specific dCas9_KRAB analyses (spike-in)
+```{r DEG CTR vs. noninj spike-in}
+suppressMessages(library(stringr))
+
+#combine TEcounts & ERCC counts
+row.names(ERCC_counts) <- ERCC_counts$id
+counts_w_ERCC <- rbind(counts, ERCC_counts)
+counts_w_ERCC <- counts_w_ERCC[, c("noninj_2c_1.count", "noninj_2c_2.count",
+                                   "CTRi_2c_1.count", "CTRi_2c_2.count",
+                                   "CTRi_2c_3.count")]
+min_read <- 10
+counts_w_ERCC <- counts_w_ERCC[apply(counts_w_ERCC, 1, function(x){sum(x)}) > min_read, ]
+groups <- factor(c(rep("CGroup",2),rep("TGroup",3)))
+sampleInfo <- data.frame(groups, row.names = colnames(counts_w_ERCC))
+
+dds <- DESeqDataSetFromMatrix(countData = counts_w_ERCC, colData = sampleInfo, design = ~ groups)
+dds$groups = relevel(dds$groups,ref="CGroup")
+
+####
+####Normalize using ERCC counts
+####
+ERCC_genes <- str_detect(row.names(counts_w_ERCC), regex("ERCC"))
+dds <- estimateSizeFactors(dds, controlGenes= ERCC_genes)
+dds <- DESeq(dds)
+res <- results(dds,independentFiltering=F)
+  
+#normalized counts obtained based on DESeq2 "plotCounts" source code
+normCounts <- counts(dds, normalized = TRUE)
+results <- as.data.frame(cbind(normCounts, res))
+results$id <- row.names(results)  
+
+#merge to rpkm table
+CTR_noninj_DESeq_rpkm_ERCC <- merge(results[, c("id", "noninj_2c_1.count", 
+                                      "noninj_2c_2.count", "CTRi_2c_1.count", 
+                                      "CTRi_2c_2.count", "CTRi_2c_3.count",
+                                      "log2FoldChange", "padj")], 
+                               rpkm[, c("id", "name", 
+                                        "noninj_2c_1.rpkm", "noninj_2c_2.rpkm",
+                                        "CTRi_2c_1.rpkm", "CTRi_2c_2.rpkm", "CTRi_2c_3.rpkm")], 
+                               by = "id")
+CTR_noninj_DESeq_rpkm_ERCC$padj[is.na(CTR_noninj_DESeq_rpkm_ERCC$padj)] <- 1
+
+#classify DEGs
+CTR_noninj_DESeq_rpkm_ERCC.group <- classifyDEG(
+                            CTR_noninj_DESeq_rpkm_ERCC,
+                            ctr.rpkm = c("noninj_2c_1.rpkm", "noninj_2c_2.rpkm"),
+                            trt.rpkm = c("CTRi_2c_1.rpkm", "CTRi_2c_2.rpkm", "CTRi_2c_3.rpkm"),
+                            FDR.col = "padj", log2FC.col = "log2FoldChange", 
+                            RPKM = 1, log2FC = log2(foldchange), FDR = 0.05)
+
+CTR_noninj_DESeq_rpkm_ERCC <- cbind(CTR_noninj_DESeq_rpkm_ERCC, CTR_noninj_DESeq_rpkm_ERCC.group)
+  
+CTR_noninj_DESeq_rpkm_ERCC.up <- CTR_noninj_DESeq_rpkm_ERCC[CTR_noninj_DESeq_rpkm_ERCC.group == "up-regulated",]
+CTR_noninj_DESeq_rpkm_ERCC.down <- CTR_noninj_DESeq_rpkm_ERCC[CTR_noninj_DESeq_rpkm_ERCC.group == "down-regulated",]
+CTR_noninj_DESeq_rpkm_ERCC.detectable <- CTR_noninj_DESeq_rpkm_ERCC[CTR_noninj_DESeq_rpkm_ERCC.group != "low_expression_level",]
+ 
+nrow(CTR_noninj_DESeq_rpkm_ERCC.up) #0
+nrow(CTR_noninj_DESeq_rpkm_ERCC.down) #0
+nrow(CTR_noninj_DESeq_rpkm_ERCC.detectable) #11910
+
+write.table(CTR_noninj_DESeq_rpkm_ERCC, "./R_output/230829_CTR_noninj_DESeq_rpkm_ERCC.csv", quote = F, row.names = F, sep = ",")
+
+#plotting
+CTR_noninj_DESeq_rpkm_ERCC$log2noninj <- log2(
+        (CTR_noninj_DESeq_rpkm_ERCC$noninj_2c_1.count + CTR_noninj_DESeq_rpkm_ERCC$noninj_2c_2.count)/2 + 1)
+CTR_noninj_DESeq_rpkm_ERCC$log2CTR <- log2(
+        (CTR_noninj_DESeq_rpkm_ERCC$CTRi_2c_1.count + CTR_noninj_DESeq_rpkm_ERCC$CTRi_2c_2.count +
+         CTR_noninj_DESeq_rpkm_ERCC$CTRi_2c_3.count)/3 + 1) 
+CTR_noninj_DESeq_rpkm_ERCC.up.label <- paste0("Up-regulated:\n", nrow(CTR_noninj_DESeq_rpkm_ERCC.up),
+                                  " (", format(round(nrow(CTR_noninj_DESeq_rpkm_ERCC.up)/nrow(CTR_noninj_DESeq_rpkm_ERCC.detectable)*100, 2), 
+                                               nsmall = 2), "%)")
+CTR_noninj_DESeq_rpkm_ERCC.down.label <- paste0("Down-regulated:\n", nrow(CTR_noninj_DESeq_rpkm_ERCC.down),
+                                  " (", format(round(nrow(CTR_noninj_DESeq_rpkm_ERCC.down)/nrow(CTR_noninj_DESeq_rpkm_ERCC.detectable)*100, 2), 
+                                               nsmall = 2), "%)")
+
+fig5 <- ggScatterplot(CTR_noninj_DESeq_rpkm_ERCC, x = "log2noninj", y = "log2CTR",
+                      group = "CTR_noninj_DESeq_rpkm_ERCC.group", gene = "name", xlab = "Non-injected 2C",
+                      ylab = "CTRi (2C)",
+                      title = "CTRi vs non-injected (2C) (spike-in normalized)",
+                      label.up = CTR_noninj_DESeq_rpkm_ERCC.up.label, 
+                      label.down = CTR_noninj_DESeq_rpkm_ERCC.down.label,
+                      genes4Label = c(
+                        "Zfp809","Zscan4c", "Zfp352", "Tpt1"),
+                      FC.line = foldchange,
+                       my.color=c("grey50", "grey50", "red3"))
+fig5
+
+pdf(file = paste0("./figures/230815_DEGs_analyses_CTRi_vs_noninj_spikein_normalized.pdf"), 
+    width = 6, height = 5)
+fig5
+dev.off()
+```
+
+### Conclusion1 
+
+1) Replicates are highly correlated.\. 
+2) dCas9-KRAB expression are comparable between groups. (injection is good)\. 
+3) dCas9-KRAB OE has no global non-specific repression for either with or without ERCC spike-in normalization.
+
+### Repeats expression
+
+#### Repeats DE tables
+```{r repeat DE analyses}
+suppressMessages(
+  ec2_DESeq <- countsToDEseq2FDR(counts = counts[, c("CTRi_e2c_1.count", "CTRi_e2c_2.count",
+                                                     "MT2_Mmi_e2c_1.count", "MT2_Mmi_e2c_2.count")], 
+                                 CGroup = 2, TGroup = 2)
+)
+
+suppressMessages(
+  c2_DESeq <- countsToDEseq2FDR(counts = counts[, c( "noninj_2c_1.count", "noninj_2c_2.count",
+                                                     "CTRi_2c_1.count", 
+                                                     "CTRi_2c_2.count", "CTRi_2c_3.count",
+                                                     "MT2_Mmi_2c_1.count", "MT2_Mmi_2c_2.count",
+                                                     "MT2_Mmi_2c_3.count")], 
+                                 CGroup = 5, TGroup = 3)
+)
+
+suppressMessages(
+  c4_DESeq <- countsToDEseq2FDR(counts = counts[, c("CTRi_4c_1.count", "CTRi_4c_2.count",
+                                                    "MT2_Mmi_4c_1.count", "MT2_Mmi_4c_2.count")], 
+                                 CGroup = 2, TGroup = 2)
+)
+
+suppressMessages(
+  c8_DESeq <- countsToDEseq2FDR(counts = counts[, c("CTRi_8c_1.count", "CTRi_8c_2.count",
+                                                    "MT2_Mmi_8c_1.count", "MT2_Mmi_8c_2.count")], 
+                                 CGroup = 2, TGroup = 2)
+)
+
+ec2_repeats <- ec2_DESeq[grep(":", ec2_DESeq$id),]
+c2_repeats <- c2_DESeq[grep(":", c2_DESeq$id),]
+c4_repeats <- c4_DESeq[grep(":", c4_DESeq$id),]
+c8_repeats <- c8_DESeq[grep(":", c8_DESeq$id),]
+
+ec2_repeats$padj[is.na(ec2_repeats$padj)] <- 1
+c2_repeats$padj[is.na(c2_repeats$padj)] <- 1
+c4_repeats$padj[is.na(c4_repeats$padj)] <- 1
+c8_repeats$padj[is.na(c8_repeats$padj)] <- 1
+
+ec2_repeats.group <- classifyDEG(ec2_repeats, 
+                                 ctr.rpkm = c("CTRi_e2c_1.count", "CTRi_e2c_2.count"),
+                                 trt.rpkm = c("MT2_Mmi_e2c_1.count", "MT2_Mmi_e2c_2.count"),
+                                 FDR.col = "padj", log2FC.col = "log2FoldChange", RPKM = 0,
+                                 log2FC = log2(foldchange), FDR = 0.05)
+
+
+c2_repeats.group <- classifyDEG(c2_repeats, 
+                                 ctr.rpkm = c("noninj_2c_1.count", "noninj_2c_2.count",
+                                   "CTRi_2c_1.count", "CTRi_2c_2.count", "CTRi_2c_3.count"),
+                                 trt.rpkm = c("MT2_Mmi_2c_1.count", "MT2_Mmi_2c_2.count", "MT2_Mmi_2c_3.count"),
+                                 FDR.col = "padj", log2FC.col = "log2FoldChange", RPKM = 0,
+                                 log2FC = log2(foldchange), FDR = 0.05)
+
+c4_repeats.group <- classifyDEG(c4_repeats, 
+                                 ctr.rpkm = c("CTRi_4c_1.count", "CTRi_4c_2.count"),
+                                 trt.rpkm = c("MT2_Mmi_4c_1.count", "MT2_Mmi_4c_2.count"),
+                                 FDR.col = "padj", log2FC.col = "log2FoldChange", RPKM = 0,
+                                 log2FC = log2(foldchange), FDR = 0.05)
+
+c8_repeats.group <- classifyDEG(c8_repeats, 
+                                 ctr.rpkm = c("CTRi_8c_1.count", "CTRi_8c_2.count"),
+                                 trt.rpkm = c("MT2_Mmi_8c_1.count", "MT2_Mmi_8c_2.count"),
+                                 FDR.col = "padj", log2FC.col = "log2FoldChange", RPKM = 0,
+                                 log2FC = log2(foldchange), FDR = 0.05)
+
+ec2_repeats <- cbind(ec2_repeats, ec2_repeats.group)
+c2_repeats <- cbind(c2_repeats, c2_repeats.group)
+c4_repeats <- cbind(c4_repeats, c4_repeats.group)
+c8_repeats <- cbind(c8_repeats, c8_repeats.group)
+
+ec2_repeats.up <- ec2_repeats[ec2_repeats.group == "up-regulated",]
+ec2_repeats.down <- ec2_repeats[ec2_repeats.group == "down-regulated",]
+
+c2_repeats.up <- c2_repeats[c2_repeats.group == "up-regulated", ]
+c2_repeats.down <- c2_repeats[c2_repeats.group == "down-regulated",]
+
+c4_repeats.up <- c4_repeats[c4_repeats.group == "up-regulated",]
+c4_repeats.down <- c4_repeats[c4_repeats.group == "down-regulated",]
+
+c8_repeats.up <- c8_repeats[c8_repeats.group == "up-regulated",]
+c8_repeats.down <- c8_repeats[c8_repeats.group == "down-regulated",]
+
+#fc = 2, fc = 3
+nrow(ec2_repeats.up) #2 #0 
+nrow(ec2_repeats.down) #40 #21
+
+nrow(c2_repeats.up) #15 #6
+nrow(c2_repeats.down) #59 #33
+
+nrow(c4_repeats.up) #12 #8
+nrow(c4_repeats.down) #23 #14
+
+nrow(c8_repeats.up) #44 #14
+nrow(c8_repeats.down) #5 #3
+
+write.table(ec2_repeats, "./R_output/230815_MT2_Mmi_e2C_repeats_DE_analyses.csv",
+            quote = F, sep = ",", row.names = F)
+write.table(c2_repeats, "./R_output/230815_MT2_Mmi_2C_repeats_DE_analyses.csv", 
+            quote = F, sep = ",", row.names = F)
+write.table(c4_repeats, "./R_output/230815_MT2_Mmi_4C_repeats_DE_analyses.csv", 
+            quote = F, sep = ",", row.names = F)
+write.table(c8_repeats, "./R_output/230815_MT2_Mmi_8C_repeats_DE_analyses.csv", 
+            quote = F, sep = ",", row.names = F)
+```
+
+#### Repeats DE plots
+
+```{r repeats scatter plots}
+ec2_repeats$log2CTR <- log2(
+  (ec2_repeats$CTRi_e2c_1.count + ec2_repeats$CTRi_e2c_2.count) / 2 + 1
+)
+ec2_repeats$log2MT2Mm <- log2(
+  (ec2_repeats$MT2_Mmi_e2c_1.count + ec2_repeats$MT2_Mmi_e2c_2.count) / 2 + 1
+)
+ec2_repeats.up.label <- paste0("Up-regulated:", nrow(ec2_repeats.up))
+ec2_repeats.down.label <- paste0("Down-regulated:", nrow(ec2_repeats.down))
+
+c2_repeats$log2CTR <- log2(
+  ( c2_repeats$noninj_2c_1.count + c2_repeats$noninj_2c_2.count + 
+    c2_repeats$CTRi_2c_1.count + c2_repeats$CTRi_2c_2.count + c2_repeats$CTRi_2c_3.count)/5 + 1)
+c2_repeats$log2MT2Mm <- log2(
+  (c2_repeats$MT2_Mmi_2c_1.count + c2_repeats$MT2_Mmi_2c_2.count + c2_repeats$MT2_Mmi_2c_3.count)/3 + 1)
+c2_repeats.up.label <- paste0("Up-regulated:", nrow(c2_repeats.up))
+c2_repeats.down.label <- paste0("Down-regulated:", nrow(c2_repeats.down))
+
+c4_repeats$log2CTR <- log2(
+  (c4_repeats$CTRi_4c_1.count + c4_repeats$CTRi_4c_2.count)/2 + 1)
+c4_repeats$log2MT2Mm <- log2(
+  (c4_repeats$MT2_Mmi_4c_1.count + c4_repeats$MT2_Mmi_4c_2.count)/2 + 1)
+c4_repeats.up.label <- paste0("Up-regulated:", nrow(c4_repeats.up))
+c4_repeats.down.label <- paste0("Down-regulated:", nrow(c4_repeats.down))
+
+c8_repeats$log2CTR <- log2(
+  (c8_repeats$CTRi_8c_1.count + c8_repeats$CTRi_8c_2.count)/2 + 1)
+c8_repeats$log2MT2Mm <- log2(
+  (c8_repeats$MT2_Mmi_8c_1.count + c8_repeats$MT2_Mmi_8c_2.count)/2 + 1)
+c8_repeats.up.label <- paste0("Up-regulated:", nrow(c8_repeats.up))
+c8_repeats.down.label <- paste0("Down-regulated:", nrow(c8_repeats.down))
+
+MT_MT2 <- c("MT2_Mm:ERVL:LTR", "MERVL-int:ERVL:LTR", "MT2B:ERVL:LTR",
+             "MT2B1:ERVL:LTR", "MT2B2:ERVL:LTR", "MER89:ERV1:LTR",
+            "MT2C_Mm:ERVL:LTR", "MERVL_2A-int:ERVL:LTR") 
+            #"GSAT_MM:Satellite:Satellite")
+
+fig6 <- ggScatterplot(ec2_repeats, x = "log2CTR", y = "log2MT2Mm",
+                      group = "ec2_repeats.group", gene = "id", xlab = "CRISPRi CTR",
+                      ylab = "CRISPRi MT2_Mm",
+                      title = "MT2_Mm CRISPRi (repeats)(e2C)",
+                      label.up = ec2_repeats.up.label, label.down = ec2_repeats.down.label,
+                      my.color=c("blue", "grey50", "red3"),
+                      genes4Label = MT_MT2,
+                      FC.line = foldchange)  
+fig6 <- fig6 +  geom_abline(intercept = log2(5), slope = 1, linetype = "F1") + 
+    geom_abline(intercept = -log2(5), slope = 1, linetype = "F1") 
+fig6
+
+fig7 <- ggScatterplot(c2_repeats, x = "log2CTR", y = "log2MT2Mm",
+                      group = "c2_repeats.group", gene = "id", xlab = "CRISPRi CTR",
+                      ylab = "CRISPRi MT2_Mm",
+                      title = "MT2_Mm CRISPRi (repeats)(2C)",
+                      label.up = c2_repeats.up.label, label.down = c2_repeats.down.label,
+                      my.color=c("blue", "grey50", "red3"),
+                      genes4Label = MT_MT2,
+                      FC.line = foldchange)            
+fig7 <- fig7 +  geom_abline(intercept = log2(5), slope = 1, linetype = "F1") + 
+    geom_abline(intercept = -log2(5), slope = 1, linetype = "F1") 
+fig7
+
+fig8 <- ggScatterplot(c4_repeats, x = "log2CTR", y = "log2MT2Mm",
+                      group = "c4_repeats.group", gene = "id", xlab = "CRISPRi CTR",
+                      ylab = "CRISPRi MT2_Mm",
+                      title = "MT2_Mm CRISPRi (repeats)(4C)",
+                      label.up = c4_repeats.up.label, label.down = c4_repeats.down.label,
+                      my.color=c("blue", "grey50", "red3"),
+                      genes4Label = MT_MT2,
+                      FC.line = foldchange)  
+fig8 <- fig8 + geom_abline(intercept = log2(5), slope = 1, linetype = "F1") + 
+    geom_abline(intercept = -log2(5), slope = 1, linetype = "F1")
+fig8
+
+fig9 <- ggScatterplot(c8_repeats, x = "log2CTR", y = "log2MT2Mm",
+                      group = "c8_repeats.group", gene = "id", xlab = "CRISPRi CTR",
+                      ylab = "CRISPRi MT2_Mm",
+                      title = "MT2_Mm CRISPRi (repeats)(8C)",
+                      label.up = c8_repeats.up.label, label.down = c8_repeats.down.label,
+                      my.color=c("blue", "grey50", "red3"),
+                      genes4Label = MT_MT2,
+                      FC.line = foldchange)
+fig9 <- fig9 + geom_abline(intercept = log2(5), slope = 1, linetype = "F1") + 
+    geom_abline(intercept = -log2(5), slope = 1, linetype = "F1")
+fig9
+
+pdf(file = paste0("./figures/230815_repeats_DE_scatterplot.pdf"), 
+    width = 6, height = 5)
+fig6
+fig7
+fig8
+fig9
+dev.off()
+```
+
+```{r repeats bar plot}
+suppressMessages(library(ggplot2))
+suppressMessages(library(reshape2))
+suppressMessages(library(tidyr))
+suppressMessages(library(cowplot))
+
+ec2_MT2Mm <- ec2_repeats[which(ec2_repeats$id %in% c("MT2_Mm:ERVL:LTR", "MERVL-int:ERVL:LTR")),
+                         c("CTRi_e2c_1.count", "CTRi_e2c_2.count", 
+                           "MT2_Mmi_e2c_1.count", "MT2_Mmi_e2c_2.count")]
+ec2_MT2Mm <- t(ec2_MT2Mm)
+ec2_MT2Mm <- cbind(ec2_MT2Mm,
+                   group = c(rep("CTRi", 2), rep("MT2_Mmi", 2)),
+                   stage = "e2C")
+
+c2_MT2Mm <- c2_repeats[which(c2_repeats$id %in% c("MT2_Mm:ERVL:LTR", "MERVL-int:ERVL:LTR")), 
+                        c("CTRi_2c_1.count", "CTRi_2c_2.count", "CTRi_2c_3.count",
+                          "MT2_Mmi_2c_1.count", "MT2_Mmi_2c_2.count", "MT2_Mmi_2c_3.count")]
+c2_MT2Mm <- t(c2_MT2Mm)
+
+c2_MT2Mm <- cbind(c2_MT2Mm,
+                  group = c(rep("CTRi", 3), rep("MT2_Mmi", 3)),
+                  stage = "2C")
+
+# c4_MT2Mm <- c4_repeats[which(c4_repeats$id %in% c("MT2_Mm:ERVL:LTR", "MERVL-int:ERVL:LTR")),
+#                        c("CTRi_4c_1.count", "CTRi_4c_2.count", 
+#                          "MT2_Mmi_4c_1.count", "MT2_Mmi_4c_2.count")]
+# c4_MT2Mm <- t(c4_MT2Mm)
+# c4_MT2Mm <- cbind(c4_MT2Mm,
+#                   group = c(rep("CTRi", 2), rep("MT2_Mmi", 2)),
+#                   stage = "4C")
+# 
+# 
+# c8_MT2Mm <- c8_repeats[which(c8_repeats$id %in% c("MT2_Mm:ERVL:LTR", "MERVL-int:ERVL:LTR")),
+#                        c("CTRi_8c_1.count", "CTRi_8c_2.count", 
+#                          "MT2_Mmi_8c_1.count", "MT2_Mmi_8c_2.count")]
+# c8_MT2Mm <- t(c8_MT2Mm)
+# c8_MT2Mm <- cbind(c8_MT2Mm,
+#                   group = c(rep("CTRi", 2), rep("MT2_Mmi", 2)),
+#                   stage = "8C")
+
+df4fig_MT2Mm <- as.data.frame(rbind(ec2_MT2Mm, c2_MT2Mm))
+df4fig_MT2Mm$`MERVL-int:ERVL:LTR` <- as.numeric(df4fig_MT2Mm$`MERVL-int:ERVL:LTR`)
+df4fig_MT2Mm$`MT2_Mm:ERVL:LTR` <- as.numeric(df4fig_MT2Mm$`MT2_Mm:ERVL:LTR`)
+
+fig10 <- ggplot(df4fig_MT2Mm, aes(x = stage, y = `MT2_Mm:ERVL:LTR`, fill = group)) + 
+  ylab("Normalized counts") +
+  geom_bar(position = "dodge", stat = 'summary', fun.y = 'mean',color = "black", width = 0.75) +
+  scale_fill_manual(breaks = c("CTRi", "MT2_Mmi"),
+                    values = c("grey80", "white")) +
+  scale_x_discrete(limits = c("e2C", "2C")) +
+  geom_point(position=position_jitterdodge(jitter.width = 0.1)) + 
+  theme_cowplot(font_size = 15) +
+  theme(axis.title.x=element_blank(),
+        legend.title=element_blank()) +
+  theme(legend.position= "top") +
+  ggtitle("MT2_Mm")
+fig10
+
+fig11 <- ggplot(df4fig_MT2Mm, aes(x = stage, y = `MERVL-int:ERVL:LTR`, fill = group)) + 
+  ylab("Normalized counts") +
+  geom_bar(position = "dodge", stat = 'summary', fun.y = 'mean',color = "black", width = 0.75) +
+  scale_fill_manual(breaks = c("CTRi", "MT2_Mmi"),
+                    values = c("grey80", "white")) +
+  geom_point(position=position_jitterdodge(jitter.width = 0.1)) + 
+  theme_cowplot(font_size = 15) +
+  scale_x_discrete(limits = c("e2C", "2C")) +
+  theme(axis.title.x=element_blank(),
+        legend.title=element_blank()) +
+  theme(legend.position= "top") +
+  ggtitle("MERVL-int")
+fig11
+
+pdf(file = "./figures/230815_MT2_Mm_MERVVL_barplot_e2C_2C.pdf",
+    width = 8, height = 4)
+plot_grid(fig9, fig10, align = "h", labels = c("A", "B"))
+dev.off()
+```
+
+```{r repeat heatmap}
+ec2_repeats_MT2Mm <- ec2_repeats[which(ec2_repeats$id %in% c("MT2_Mm:ERVL:LTR", "MERVL-int:ERVL:LTR",
+                                                                    "MT2C_Mm:ERVL:LTR", "MERVL_2A-int:ERVL:LTR",
+                                                                    "MER89:ERV1:LTR")),
+                                 c("id", "log2FoldChange")]
+
+c2_repeats_MT2Mm <- c2_repeats[which(c2_repeats$id %in% c("MT2_Mm:ERVL:LTR", "MERVL-int:ERVL:LTR",
+                                                                    "MT2C_Mm:ERVL:LTR", "MERVL_2A-int:ERVL:LTR",
+                                                                    "MER89:ERV1:LTR")),
+                               c("id", "log2FoldChange")]
+
+pdf("./figures/230821_MT2Mmi_repeat_heatmap.pdf", height = 6, width = 5)
+pheatmap(as.matrix(ec2_repeats_MT2Mm[, "log2FoldChange"], row.names = ec2_repeats_MT2Mm$id), cluster_rows = F, cluster_cols = F,
+         color = colorRampPalette(rev(c("white", "blue")))(100), 
+         breaks = seq(-5, 0, by = 0.05), show_rownames = T, )
+pheatmap(as.matrix(c2_repeats_MT2Mm[, "log2FoldChange"], row.names = c2_repeats_MT2Mm$id), cluster_rows = F, cluster_cols = F,
+         color = colorRampPalette(rev(c("white", "blue")))(100), 
+         breaks = seq(-5, 0, by = 0.05), show_rownames = T)
+dev.off()
+```
+
+```{r repeat barplot 2C only}
+# df4fig_MT2Mm_2C <- df4fig_MT2Mm[which(df4fig_MT2Mm$stage == "2C"), ]
+# fig9_1 <- ggplot(df4fig_MT2Mm_2C, aes(x = stage, y = `MT2_Mm:ERVL:LTR`, fill = group)) + 
+#   ylab("Normalized counts") +
+#   geom_bar(position = "dodge", stat = 'summary', fun.y = 'mean',color = "black", width = 0.75) +
+#   scale_fill_manual(breaks = c("CTRi", "MT2_Mmi"),
+#                     values = c("grey80", "white")) +
+#   geom_point(position=position_jitterdodge(jitter.width = 0.1)) + 
+#   theme_cowplot(font_size = 15) +
+#   theme(axis.title.x=element_blank(),
+#         legend.title=element_blank()) +
+#   theme(legend.position= "top") +
+#   ggtitle("MT2_Mm")
+# fig9_1
+# fig10_1 <- ggplot(df4fig_MT2Mm_2C, aes(x = stage, y = `MERVL-int:ERVL:LTR`, fill = group)) + 
+#   ylab("Normalized counts") +
+#   geom_bar(position = "dodge", stat = 'summary', fun.y = 'mean',color = "black", width = 0.75) +
+#   scale_fill_manual(breaks = c("CTRi", "MT2_Mmi"),
+#                     values = c("grey80", "white")) +
+#   geom_point(position=position_jitterdodge(jitter.width = 0.1)) + 
+#   theme_cowplot(font_size = 15) +
+#   theme(axis.title.x=element_blank(),
+#         legend.title=element_blank()) +
+#   theme(legend.position= "top") +
+#   ggtitle("MERVL-int")
+# fig10_1
+# 
+# pdf(file = "./R_output/figures/230803_MT2_Mm_MERVVL_barplot_2Conly.pdf",
+#     width = 4, height = 4)
+# plot_grid(fig9_1, fig10_1, align = "h", labels = c("A", "B"))
+# dev.off()
+```
+
+### Conclusion2
+
+1) MT2_Mm and MERVL-int are the most down-regulated\.  
+2) MT2C_Mm is also down-regulated\.  
+
+### Genes expression
+
+#### Genes DE tables
+
+```{r DE genes table}
+ec2_DESeq_rpkm <- merge(ec2_DESeq[, c("id",
+                                      "CTRi_e2c_1.count", "CTRi_e2c_2.count",
+                                      "MT2_Mmi_e2c_1.count", "MT2_Mmi_e2c_2.count",
+                                      "log2FoldChange", "padj")],
+                        rpkm[, c("id", "name", 
+                                 "CTRi_e2c_1.rpkm", "CTRi_e2c_2.rpkm", 
+                                 "MT2_Mmi_e2c_1.rpkm", "MT2_Mmi_e2c_2.rpkm")],
+                        by = "id"
+                        )
+
+c2_DESeq_rpkm <- merge(c2_DESeq[, c("id", 
+                                    "noninj_2c_1.count", "noninj_2c_2.count",
+                                    "CTRi_2c_1.count", "CTRi_2c_2.count",
+                                    "CTRi_2c_3.count", 
+                                    "MT2_Mmi_2c_1.count",
+                                    "MT2_Mmi_2c_2.count", "MT2_Mmi_2c_3.count",
+                                    "log2FoldChange", "padj")],
+                       rpkm[, c("id", "name", 
+                                "noninj_2c_1.rpkm", "noninj_2c_2.rpkm",
+                                "CTRi_2c_1.rpkm", "CTRi_2c_2.rpkm", "CTRi_2c_3.rpkm",
+                                "MT2_Mmi_2c_1.rpkm", "MT2_Mmi_2c_2.rpkm", "MT2_Mmi_2c_3.rpkm")],
+                       by = "id")
+
+c4_DESeq_rpkm <- merge(c4_DESeq[, c("id", "CTRi_4c_1.count", "CTRi_4c_2.count",
+                                    "MT2_Mmi_4c_1.count", "MT2_Mmi_4c_2.count",
+                                    "log2FoldChange", "padj")],
+                       rpkm[, c("id", "name", 
+                                "CTRi_4c_1.rpkm", "CTRi_4c_2.rpkm",
+                                "MT2_Mmi_4c_1.rpkm", "MT2_Mmi_4c_2.rpkm")],
+                       by = "id")
+
+c8_DESeq_rpkm <- merge(c8_DESeq[, c("id", "CTRi_8c_1.count", "CTRi_8c_2.count",
+                                    "MT2_Mmi_8c_1.count", "MT2_Mmi_8c_2.count",
+                                    "log2FoldChange", "padj")],
+                       rpkm[, c("id", "name", 
+                                "CTRi_8c_1.rpkm", "CTRi_8c_2.rpkm",
+                                "MT2_Mmi_8c_1.rpkm", "MT2_Mmi_8c_2.rpkm")],
+                       by = "id")
+
+ec2_DESeq_rpkm$padj[is.na(ec2_DESeq_rpkm$padj)] <- 1
+c2_DESeq_rpkm$padj[is.na(c2_DESeq_rpkm$padj)] <- 1
+c4_DESeq_rpkm$padj[is.na(c4_DESeq_rpkm$padj)] <- 1
+c8_DESeq_rpkm$padj[is.na(c8_DESeq_rpkm$padj)] <- 1
+
+ec2_DESeq_rpkm.group <- classifyDEG(
+                            ec2_DESeq_rpkm,
+                            ctr.rpkm = c("CTRi_e2c_1.rpkm", "CTRi_e2c_2.rpkm"),
+                            trt.rpkm = c("MT2_Mmi_e2c_1.rpkm", "MT2_Mmi_e2c_2.rpkm"),
+                            FDR.col = "padj", log2FC.col = "log2FoldChange",
+                            RPKM = 1, log2FC = log2(foldchange), FDR = 0.05)
+
+c2_DESeq_rpkm.group <- classifyDEG(
+                            c2_DESeq_rpkm,
+                            ctr.rpkm = c("noninj_2c_1.rpkm", "noninj_2c_2.rpkm",
+                              "CTRi_2c_1.rpkm", "CTRi_2c_2.rpkm", "CTRi_2c_3.rpkm"),
+                            trt.rpkm = c("MT2_Mmi_2c_1.rpkm", "MT2_Mmi_2c_2.rpkm", "MT2_Mmi_2c_3.rpkm"),
+                            FDR.col = "padj", log2FC.col = "log2FoldChange",
+                            RPKM = 1, log2FC = log2(foldchange), FDR = 0.05)
+
+c4_DESeq_rpkm.group <- classifyDEG(
+                            c4_DESeq_rpkm,
+                            ctr.rpkm = c("CTRi_4c_1.rpkm", "CTRi_4c_2.rpkm"),
+                            trt.rpkm = c("MT2_Mmi_4c_1.rpkm", "MT2_Mmi_4c_2.rpkm"),
+                            FDR.col = "padj", log2FC.col = "log2FoldChange",
+                            RPKM = 1, log2FC = log2(foldchange), FDR = 0.05)
+
+c8_DESeq_rpkm.group <- classifyDEG(
+                            c8_DESeq_rpkm,
+                            ctr.rpkm = c("CTRi_8c_1.rpkm", "CTRi_8c_2.rpkm"),
+                            trt.rpkm = c("MT2_Mmi_8c_1.rpkm", "MT2_Mmi_8c_2.rpkm"),
+                            FDR.col = "padj", log2FC.col = "log2FoldChange",
+                            RPKM = 1, log2FC = log2(foldchange), FDR = 0.05)
+
+ec2_DESeq_rpkm <- cbind(ec2_DESeq_rpkm, ec2_DESeq_rpkm.group)
+c2_DESeq_rpkm <- cbind(c2_DESeq_rpkm, c2_DESeq_rpkm.group)
+c4_DESeq_rpkm <- cbind(c4_DESeq_rpkm, c4_DESeq_rpkm.group)
+c8_DESeq_rpkm <- cbind(c8_DESeq_rpkm, c8_DESeq_rpkm.group)
+
+ec2_DESeq_rpkm.up <- ec2_DESeq_rpkm[ec2_DESeq_rpkm.group == "up-regulated",]
+ec2_DESeq_rpkm.down <- ec2_DESeq_rpkm[ec2_DESeq_rpkm.group == "down-regulated",]
+ec2_DESeq_rpkm.detectable <- ec2_DESeq_rpkm[ec2_DESeq_rpkm.group != "low_expression_level",]
+
+c2_DESeq_rpkm.up <- c2_DESeq_rpkm[c2_DESeq_rpkm.group == "up-regulated",]
+c2_DESeq_rpkm.down <- c2_DESeq_rpkm[c2_DESeq_rpkm.group == "down-regulated",]
+c2_DESeq_rpkm.detectable <- c2_DESeq_rpkm[c2_DESeq_rpkm.group != "low_expression_level",]
+
+c4_DESeq_rpkm.up <- c4_DESeq_rpkm[c4_DESeq_rpkm.group == "up-regulated",]
+c4_DESeq_rpkm.down <- c4_DESeq_rpkm[c4_DESeq_rpkm.group == "down-regulated",]
+c4_DESeq_rpkm.detectable <- c4_DESeq_rpkm[c4_DESeq_rpkm.group != "low_expression_level",]
+
+c8_DESeq_rpkm.up <- c8_DESeq_rpkm[c8_DESeq_rpkm.group == "up-regulated",]
+c8_DESeq_rpkm.down <- c8_DESeq_rpkm[c8_DESeq_rpkm.group == "down-regulated",]
+c8_DESeq_rpkm.detectable <- c8_DESeq_rpkm[c8_DESeq_rpkm.group != "low_expression_level",]
+
+nrow(ec2_DESeq_rpkm.up) #52 
+nrow(ec2_DESeq_rpkm.down) #206
+nrow(ec2_DESeq_rpkm.detectable) #11723
+
+nrow(c2_DESeq_rpkm.up) #91
+nrow(c2_DESeq_rpkm.down) #471
+nrow(c2_DESeq_rpkm.detectable) #12235
+
+nrow(c4_DESeq_rpkm.up) #300
+nrow(c4_DESeq_rpkm.down) #310
+nrow(c4_DESeq_rpkm.detectable) #12374
+
+nrow(c8_DESeq_rpkm.up) #380
+nrow(c8_DESeq_rpkm.down) #219
+nrow(c8_DESeq_rpkm.detectable) #12397
+
+write.table(ec2_DESeq_rpkm, "./R_output/230815_MT2_Mmi_e2C_genes_DE_analyses.csv",
+            quote = F, sep = ",", row.names = F)
+write.table(c2_DESeq_rpkm, "./R_output/230815_MT2_Mmi_2C_genes_DE_analyses.csv", 
+            quote = F, sep = ",", row.names = F)
+write.table(c4_DESeq_rpkm, "./R_output/230815_MT2_Mmi_4C_genes_DE_analyses.csv", 
+            quote = F, sep = ",", row.names = F)
+write.table(c8_DESeq_rpkm, "./R_output/230815_MT2_Mmi_8C_genes_DE_analyses.csv", 
+            quote = F, sep = ",", row.names = F)
+```
+
+#### Genes DE plots
+```{r DE gene plotting}
+#early 2-cell
+ec2_DESeq_rpkm$log2CTR <- log2(
+  (ec2_DESeq_rpkm$CTRi_e2c_1.count + ec2_DESeq_rpkm$CTRi_e2c_2.count) / 2 + 1
+)
+ec2_DESeq_rpkm$log2MT2Mm <- log2(
+  (ec2_DESeq_rpkm$MT2_Mmi_e2c_1.count + ec2_DESeq_rpkm$MT2_Mmi_e2c_2.count) / 2 + 1
+)
+ec2_DESeq_rpkm.up.label <- paste0("Up-regulated:\n", nrow(ec2_DESeq_rpkm.up),
+                                  " (", format(round(nrow(ec2_DESeq_rpkm.up)/nrow(ec2_DESeq_rpkm.detectable)*100, 2), nsmall = 2), "%)")
+ec2_DESeq_rpkm.down.label <- paste0("Down-regulated:\n", nrow(ec2_DESeq_rpkm.down),
+                                 " (", format(round(nrow(ec2_DESeq_rpkm.down)/nrow(ec2_DESeq_rpkm.detectable)*100, 2), nsmall = 2), "%)")
+
+#2-cell
+c2_DESeq_rpkm$log2CTR <- log2(
+  ( c2_DESeq_rpkm$noninj_2c_1.count + c2_DESeq_rpkm$noninj_2c_2.count + 
+    c2_DESeq_rpkm$CTRi_2c_1.count + c2_DESeq_rpkm$CTRi_2c_2.count + c2_DESeq_rpkm$CTRi_2c_3.count)/5 + 1)
+c2_DESeq_rpkm$log2MT2Mm <- log2(
+  (c2_DESeq_rpkm$MT2_Mmi_2c_1.count + c2_DESeq_rpkm$MT2_Mmi_2c_2.count + c2_DESeq_rpkm$MT2_Mmi_2c_3.count)/3 + 1
+)
+
+c2_DESeq_rpkm.up.label <- paste0("Up-regulated:\n", nrow(c2_DESeq_rpkm.up),
+                                 " (", format(round(nrow(c2_DESeq_rpkm.up)/nrow(c2_DESeq_rpkm.detectable)*100, 2), nsmall = 2), "%)")
+
+c2_DESeq_rpkm.down.label <- paste0("Down-regulated:\n", nrow(c2_DESeq_rpkm.down),
+                                 " (", format(round(nrow(c2_DESeq_rpkm.down)/nrow(c2_DESeq_rpkm.detectable)*100, 2), nsmall = 2), "%)")
+
+#4-cell
+c4_DESeq_rpkm$log2CTR <- log2(
+  (c4_DESeq_rpkm$CTRi_4c_1.count + c4_DESeq_rpkm$CTRi_4c_2.count)/2 + 1)
+c4_DESeq_rpkm$log2MT2Mm <- log2(
+  (c4_DESeq_rpkm$MT2_Mmi_4c_1.count + c4_DESeq_rpkm$MT2_Mmi_4c_2.count)/2 + 1)
+c4_DESeq_rpkm.up.label <- paste0("Up-regulated:\n", nrow(c4_DESeq_rpkm.up),
+                                 " (", format(round(nrow(c4_DESeq_rpkm.up)/nrow(c4_DESeq_rpkm.detectable)*100, 2), nsmall = 2), "%)")
+c4_DESeq_rpkm.down.label <- paste0("Down-regulated:\n", nrow(c4_DESeq_rpkm.down),
+                                 " (", format(round(nrow(c4_DESeq_rpkm.down)/nrow(c4_DESeq_rpkm.detectable)*100, 2), nsmall = 2), "%)")
+
+#8-cell
+c8_DESeq_rpkm$log2CTR <- log2(
+  (c8_DESeq_rpkm$CTRi_8c_1.count + c8_DESeq_rpkm$CTRi_8c_2.count)/2 + 1)
+c8_DESeq_rpkm$log2MT2Mm <- log2(
+  (c8_DESeq_rpkm$MT2_Mmi_8c_1.count + c8_DESeq_rpkm$MT2_Mmi_8c_2.count)/2 + 1)
+c8_DESeq_rpkm.up.label <- paste0("Up-regulated:\n", nrow(c8_DESeq_rpkm.up),
+                                 " (", format(round(nrow(c8_DESeq_rpkm.up)/nrow(c8_DESeq_rpkm.detectable)*100, 2), nsmall = 2), "%)")
+c8_DESeq_rpkm.down.label <- paste0("Down-regulated:\n", nrow(c8_DESeq_rpkm.down),
+                                 " (", format(round(nrow(c8_DESeq_rpkm.down)/nrow(c8_DESeq_rpkm.detectable)*100, 2), nsmall = 2), "%)")
+
+#genes to label:
+#Zfp809
+#Tpt1
+fig12 <- ggScatterplot(ec2_DESeq_rpkm, x = "log2CTR", y = "log2MT2Mm",
+                       group = "ec2_DESeq_rpkm.group", gene = "name", xlab = "CRISPRi CTR",
+                       ylab = "CRISPRi MT2_Mm",
+                       title = "MT2_Mm CRISPRi (genes)(e2C)",
+                       label.up = ec2_DESeq_rpkm.up.label,
+                       label.down = ec2_DESeq_rpkm.down.label,
+                       genes4Label = c("Zscan4c", "Zfp352", "Fundc1", "Ddit4l", "Obox3", "Obox6"),
+                       FC.line = foldchange)
+fig12
+fig13 <- ggScatterplot(c2_DESeq_rpkm, x = "log2CTR", y = "log2MT2Mm",
+                       group = "c2_DESeq_rpkm.group", gene = "name", xlab = "CRISPRi CTR",
+                       ylab = "CRISPRi MT2_Mm",
+                       title = "MT2_Mm CRISPRi (genes)(2C)",
+                       label.up = c2_DESeq_rpkm.up.label,
+                       label.down = c2_DESeq_rpkm.down.label,
+                       genes4Label = c("Zscan4c", "Zfp352", "Fundc1", "Ddit4l", "Obox3", "Obox6"),
+                       FC.line = foldchange)
+fig13
+
+fig14 <- ggScatterplot(c4_DESeq_rpkm, x = "log2CTR", y = "log2MT2Mm",
+                       group = "c4_DESeq_rpkm.group", gene = "name", xlab = "CRISPRi CTR",
+                       ylab = "CRISPRi MT2_Mm",
+                       title = "MT2_Mm CRISPRi (genes)(4C)",
+                       label.up = c4_DESeq_rpkm.up.label,
+                       label.down = c4_DESeq_rpkm.down.label,
+                       genes4Label = c("Zscan4c", "Zfp352", "Fundc1", "Ddit4l", "Obox3", "Obox6"),
+                       FC.line = foldchange)
+fig14
+
+fig15 <- ggScatterplot(c8_DESeq_rpkm, x = "log2CTR", y = "log2MT2Mm",
+                       group = "c8_DESeq_rpkm.group", gene = "name", xlab = "CRISPRi CTR",
+                       ylab = "CRISPRi MT2_Mm",
+                       title = "MT2_Mm CRISPRi (genes)(8C)",
+                       label.up = c8_DESeq_rpkm.up.label,
+                       label.down = c8_DESeq_rpkm.down.label,
+                       genes4Label = c("Zscan4c", "Zfp352", "Fundc1", "Ddit4l", "Obox3", "Obox6"),
+                       FC.line = foldchange)
+fig15 
+
+pdf("./figures/230815_genes_DE_scatterplot.pdf", width = 6, height = 5)
+fig12
+fig13
+fig14
+fig15
+dev.off()
+```
+### Conclution3
+
+1) More genes were down-regulated at late2C than up-regulated
+2) Comparable up- and down-regulated genes at 4C & 8C. DEGs @ 4C and 8C could be due to 2nd effecsts.
+
+
+## GO term-analyses
+```{r GO term}
+suppressMessages(library(clusterProfiler))
+suppressMessages(library(org.Mm.eg.db))
+suppressMessages(library(enrichplot))
+suppressMessages(library(ggplot2))
+suppressMessages(library(cowplot))
+
+e2c_down_go <- enrichGO(gene = ec2_DESeq_rpkm.down$name, OrgDb = org.Mm.eg.db,
+                       keyType = "SYMBOL", ont = "BP", pAdjustMethod = "BH", 
+                       pvalueCutoff  = 0.01, qvalueCutoff  = 0.01)
+
+
+c2_down_go <- enrichGO(gene = c2_DESeq_rpkm.down$name, OrgDb = org.Mm.eg.db,
+                       keyType = "SYMBOL", ont = "BP", pAdjustMethod = "BH", 
+                       pvalueCutoff  = 0.01, qvalueCutoff  = 0.01)
+
+c4_down_go <- enrichGO(gene = c4_DESeq_rpkm.down$name, OrgDb = org.Mm.eg.db,
+                       keyType = "SYMBOL", ont = "BP", pAdjustMethod = "BH", 
+                       pvalueCutoff  = 0.01, qvalueCutoff  = 0.01)
+
+
+c4_up_go <- enrichGO(gene = c4_DESeq_rpkm.up$name, OrgDb = org.Mm.eg.db,
+                       keyType = "SYMBOL", ont = "BP", pAdjustMethod = "BH", 
+                       pvalueCutoff  = 0.01, qvalueCutoff  = 0.01)
+
+c8_up_go <- enrichGO(gene = c8_DESeq_rpkm.up$name, OrgDb = org.Mm.eg.db,
+                       keyType = "SYMBOL", ont = "BP", pAdjustMethod = "BH", 
+                       pvalueCutoff  = 0.01, qvalueCutoff  = 0.01)
+
+c8_down_go <- enrichGO(gene = c8_DESeq_rpkm.down$name, OrgDb = org.Mm.eg.db,
+                       keyType = "SYMBOL", ont = "BP", pAdjustMethod = "BH", 
+                       pvalueCutoff  = 0.01, qvalueCutoff  = 0.01)
+```
+
+## Dynamic exrpression of DEGS
+```{r 4C DEG dynamic expression}
+zhang_fpkm$c4 <- (zhang_fpkm$total_4c_1.rpkm + zhang_fpkm$total_4c_2.rpkm)/2
+zhang_fpkm$mor <- (zhang_fpkm$total_mor_1.rpkm + zhang_fpkm$total_mor_2.rpkm)/2
+zhang_fpkm$bl <- (zhang_fpkm$total_BL_1.rpkm + zhang_fpkm$total_BL_2.rpkm)/2
+
+zhang_fpkm_4c_up <- zhang_fpkm[which(zhang_fpkm$id %in% c4_DESeq_rpkm.up$id),
+                                 c(17:20, 27:29)]
+
+#perform two-sided wilcox test 
+wilcox.test(zhang_fpkm_4c_up$e2c, 
+            zhang_fpkm_4c_up$c1, alternative = "two.sided")$p.value
+#1.98e-13
+wilcox.test(zhang_fpkm_4c_up$l2c, 
+            zhang_fpkm_4c_up$c4, alternative = "two.sided")$p.value
+#2.25e-12
+
+df4boxplot <- gather(log2(zhang_fpkm_4c_up+0.01), "stage", "FPKM")
+pdf("./figures/230822_4C_upregulated genes in development.pdf", height = 5, width = 6)
+ggplot(df4boxplot, aes(x = stage, y = FPKM)) + 
+  geom_boxplot(color = "black", alpha = 0.2, outlier.color = NA) +
+  scale_x_discrete(limits = c("MII","c1", "e2c", "l2c", "c4", "mor", "bl")) +
+  theme(axis.title.x = element_blank()) +
+  ggtitle("4C_up-regulated genes") +theme_cowplot(16) 
+dev.off()
+``` 
+
+## Obox expression upon MT2_Mmi
+```{r Obox expression upon MT2_Mmi}
+Obox <- rpkm[grep("Obox", rpkm$name), ]
+
+#aggregate Obox3-ps and Obox4-ps
+Obox4_ps <- Obox[grep("Obox4-ps", Obox$name),]
+Obox4_ps_mean <- colMeans(Obox4_ps[, c(3:ncol(Obox4_ps))])
+
+Obox3_ps <- Obox[grep("Obox3-ps", Obox$name),]
+Obox3_ps_mean <- colMeans(Obox3_ps[, c(3:ncol(Obox3_ps))])
+
+Obox_cleaned <- rbind(Obox[which(Obox$name %in% c("Obox1", "Obox2", "Obox5", 
+                                                  "Obox7", "Obox3",
+                                                  "Obox6")),],
+                      c("Obox4-ps", "Obox4-ps", Obox4_ps_mean),
+                      c("Obox3-ps", "Obox3-ps", Obox3_ps_mean))
+
+Obox_cleaned$ctr_e2c <- (as.numeric(Obox_cleaned$CTRi_e2c_1.rpkm) + 
+                         as.numeric(Obox_cleaned$CTRi_e2c_2.rpkm)) / 2
+Obox_cleaned$mt2_e2c <- (as.numeric(Obox_cleaned$MT2_Mmi_e2c_1.rpkm) +
+                         as.numeric(Obox_cleaned$CTRi_e2c_2.rpkm)) /2
+
+Obox_cleaned$ctr_l2c <- (as.numeric(Obox_cleaned$noninj_2c_1.rpkm) + 
+                         as.numeric(Obox_cleaned$noninj_2c_2.rpkm) +
+                         as.numeric(Obox_cleaned$CTRi_2c_1.rpkm) + 
+                         as.numeric(Obox_cleaned$CTRi_2c_2.rpkm) +
+                         as.numeric(Obox_cleaned$CTRi_2c_3.rpkm)) / 5
+Obox_cleaned$mt2_l2c <- (as.numeric(Obox_cleaned$MT2_Mmi_2c_1.rpkm) + 
+                         as.numeric(Obox_cleaned$MT2_Mmi_2c_2.rpkm) + 
+                         as.numeric(Obox_cleaned$MT2_Mmi_2c_3.rpkm)) / 3
+
+Obox_cleaned$e2c_log2FC <- log2(Obox_cleaned$mt2_e2c+0.01) - log2(Obox_cleaned$ctr_e2c + 0.01)
+Obox_cleaned$l2c_log2FC <- log2(Obox_cleaned$mt2_l2c+0.01) - log2(Obox_cleaned$ctr_l2c + 0.01)
+
+pdf("./figures/230821_Obox_expression_upon_MT2Mmi_heatmap.pdf", height = 5, width = 4)
+pheatmap(as.matrix(Obox_cleaned[, "e2c_log2FC"]), cluster_rows = F, cluster_cols = F,
+         color = colorRampPalette(rev(c("red","white", "blue")))(400),
+         breaks = seq(-2, 2, by = 0.01), show_rownames = T)
+pheatmap(as.matrix(Obox_cleaned[, "l2c_log2FC"]), cluster_rows = F, cluster_cols = F,
+         color = colorRampPalette(rev(c("red","white", "blue")))(400),
+breaks = seq(-2, 2, by = 0.01), show_rownames = T)
+dev.off()
+Obox_cleaned[, c("name", "e2c_log2FC", "l2c_log2FC")]
+```
