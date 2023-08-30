@@ -1,0 +1,427 @@
+---
+title: "230817 CRISPRi_ZGA_and_Obox_analyses"
+output: html_notebook
+---
+
+## Nearest gene identification
+```{bash}
+#!/usr/bin/bash 
+module load bedtools/2.27.0
+
+TE="./R_output/230817_MT2Mm_MT2CMm_boundbyCas9.bed"
+GTF="/data/ZYChenlab/Zhiyuan/genomes_annotations/mm10/annotations/gencode.vM25.annotation.gtf"
+
+
+awk 'OFS="\t" {if ($3=="gene") {print $1,$4-1,$5,$10,$14,$7}}' $GTF | tr -d '";' > mm10_gene.bed
+sort -k1,1 -k2,2n mm10_gene.bed > mm10_gene_sorted.bed
+sort -k1,1 -k2,2n $TE > MT2Mm_MT2CMm_boundbyCas9_sorted.bed
+
+bedtools closest -a mm10_gene_sorted.bed -b MT2Mm_MT2CMm_boundbyCas9_sorted.bed  -D "b" | uniq > ./R_input/ChIP_seq/230817_nearest_ChIPseqPeak2Gene.txt
+
+#chr19	6906696	6910106	ENSMUSG00000024953.17	Prdx5	-	chr19	6903426	6903925	MT2_Mm:ERVL:LTR	0	-	-2772
+#1st is gene strand, 2nd is repeat strand 
+```
+
+## Input DEGs & gene_TE distance
+```{r input DEGs & gene_TE_distance}
+e2c_RNA <- read.table("./R_output/230815_MT2_Mmi_e2C_genes_DE_analyses.csv", sep =",", header = T)
+c2_RNA <- read.table("./R_output/230815_MT2_Mmi_2C_genes_DE_analyses.csv", sep = ",", header = T)
+gene_MT2_distance <- read.table("./R_input/ChIP_seq/230817_nearest_ChIPseqPeak2Gene.txt",
+                                         header = F, sep = "\t")
+nrow(e2c_RNA[which(e2c_RNA$ec2_DESeq_rpkm.group == "down-regulated"),]) #206
+nrow(c2_RNA[which(c2_RNA$c2_DESeq_rpkm.group == "down-regulated"),]) #471
+nrow(gene_MT2_distance) #55785
+colnames(gene_MT2_distance) <- c("gene_chr", "gene_start", "gene_end", 
+                                   "id", "name", "gene_strand", 
+                                   "peak_chr", "peak_start", "peak_end", 
+                                   "peak_name", "peak_score", "peak_strand",
+                                   "distance")
+#for genes with multiple peaks in the gene bodies, randomly pick one
+gene_MT2_distance <- gene_MT2_distance[!duplicated(gene_MT2_distance$id),]
+nrow(gene_MT2_distance) #55401
+```
+
+## Classify DEGs by distance to TEs
+```{r Classify DEGs by distance to TEs}
+source("./utils.R")
+c2_RNA <- merge(c2_RNA, gene_MT2_distance[, c("id", "distance")],
+                by = "id")
+e2c_RNA <- merge(e2c_RNA, gene_MT2_distance[, c("id", "distance")],
+                 by = "id")
+c2_RNA$bin <- classify_distance(as.numeric(c2_RNA$distance), ignore_direction = T)
+e2c_RNA$bin <- classify_distance(as.numeric(e2c_RNA$distance), ignore_direction = T)
+
+c2_RNA.up <- c2_RNA[which(c2_RNA$c2_DESeq_rpkm.group == "up-regulated"),]
+c2_RNA.down <- c2_RNA[which(c2_RNA$c2_DESeq_rpkm.group == "down-regulated"),]
+e2c_RNA.up <- e2c_RNA[which(e2c_RNA$ec2_DESeq_rpkm.group == "up-regulated"),]
+e2c_RNA.down <- e2c_RNA[which(e2c_RNA$ec2_DESeq_rpkm.group == "down-regulated"),]
+
+table(c2_RNA.up$bin)
+#>50kb  0-10kb 10-30kb 30-50kb 
+#    83       2       2      4
+
+table(c2_RNA.down$bin)
+#>50kb  0-10kb 10-30kb 30-50kb 
+#     83     330      41      17 
+
+table(e2c_RNA.up$bin)
+#>50kb  0-10kb 10-30kb 30-50kb 
+#     44       3       1       4
+
+table(e2c_RNA.down$bin)
+#>50kb  0-10kb 10-30kb 30-50kb 
+#     19     171      13       3 
+
+#Make pie chart here.
+pdf("./figures/230817_genes_DE_byDisatance_pieChart_boxplot_FC3.pdf", width = 5, height = 5)
+pie(table(c2_RNA.up$bin), main = "late2C: up-regulated genes (91)")
+pie(table(c2_RNA.down$bin), main = "late2C: down-regulated genes (471)")
+pie(table(e2c_RNA.up$bin), main = "early2C: up-regulated genes (52)")
+pie(table(e2c_RNA.down$bin), main = "early2C: down-regulated genes (206)")
+dev.off()
+```
+## minor/major ZGA and maternal gene
+```{r minor/major ZGA and maternal gene}
+suppressMessages(library(dplyr))
+minorZGA <- read.table("./R_output/230817_zhang_minorZGA.csv", sep = ",", header = T)
+majorZGA <- read.table("./R_output/230803_zhang_majorZGA.csv", sep = ",", header = T)
+maternal_gene <- read.table("./R_output/230817_zhang_maternal_gene.csv", 
+                            sep = ",", header = T)
+e2c_RNA <- read.table("./R_output/230815_MT2_Mmi_e2C_genes_DE_analyses.csv", sep =",", header = T)
+c2_RNA <- read.table("./R_output/230815_MT2_Mmi_2C_genes_DE_analyses.csv", sep = ",", header = T)
+
+#for later scatter plot
+e2c_RNA$logCTR <- log2((e2c_RNA$CTRi_e2c_1.count + e2c_RNA$CTRi_e2c_2.count)/2 + 1)
+e2c_RNA$logMT2Mm <- log2((e2c_RNA$MT2_Mmi_e2c_1.count + e2c_RNA$MT2_Mmi_e2c_2.count)/2 + 1)
+c2_RNA$logCTR <- log2((c2_RNA$noninj_2c_1.count + c2_RNA$noninj_2c_2.count + c2_RNA$CTRi_2c_1.count
+                    + c2_RNA$CTRi_2c_2.count + c2_RNA$CTRi_2c_3.count)/5 + 1)
+c2_RNA$logMT2Mm <- log2((c2_RNA$MT2_Mmi_2c_1.count + c2_RNA$MT2_Mmi_2c_2.count +
+                        c2_RNA$MT2_Mmi_2c_3.count)/3 + 1)
+
+nrow(minorZGA) #717
+nrow(majorZGA) #1989
+nrow(maternal_gene) #2768
+
+minorZGA_e2c <- left_join(minorZGA, e2c_RNA, by = "id")
+nrow(minorZGA_e2c) #717
+table(minorZGA_e2c$ec2_DESeq_rpkm.group) 
+#down-regulated low_expression_level        similar_level 
+#                 101                   27                  570 
+#        up-regulated 
+#                  11 
+
+maternal_gene_e2c <- left_join(maternal_gene, e2c_RNA, by = "id")
+nrow(maternal_gene_e2c)
+table(maternal_gene_e2c$ec2_DESeq_rpkm.group)
+#low_expression_level        similar_level 
+#                  74                 2689 
+
+majorZGA_l2c <- left_join(majorZGA, c2_RNA, by = "id")
+nrow(majorZGA_l2c) #1989
+table(majorZGA_l2c$c2_DESeq_rpkm.group) 
+#down-regulated low_expression_level        similar_level 
+#                 197                  100                 1681 
+#        up-regulated 
+#                   3
+
+maternal_gene_l2c <- left_join(maternal_gene, c2_RNA, by = "id")
+nrow(maternal_gene_l2c)
+table(maternal_gene_l2c$c2_DESeq_rpkm.group)
+#down-regulated low_expression_level        similar_level 
+#                   5                  309                 2448 
+#        up-regulated 
+#                   1
+
+#Make scatter plot
+pdf("./figures/230820_minor_major_maternal_ZGA_scatterplot.pdf", 
+    width = 6, height = 5)
+foldchange = 3
+ggScatterplot(minorZGA_e2c, x = "logCTR", y = "logMT2Mm",
+                       group = "ec2_DESeq_rpkm.group", gene = "name.y", xlab = "CRISPRi CTR",
+                       ylab = "CRISPRi MT2_Mm",
+                       title = paste0("minor ZGA (e2C):", nrow(minorZGA)),
+                       label.up = paste0(nrow(minorZGA_e2c[which(minorZGA_e2c$ec2_DESeq_rpkm.group == "up-regulated"),])),
+                       label.down = paste0(nrow(minorZGA_e2c[which(minorZGA_e2c$ec2_DESeq_rpkm.group == "down-regulated"),])),
+                       #genes4Label = c("Zscan4c", "Zfp352", "Fundc1", "Ddit4l", "Obox3", "Obox6"),
+                       FC.line = foldchange)
+
+ggScatterplot(maternal_gene_e2c, x = "logCTR", y = "logMT2Mm",
+                       group = "ec2_DESeq_rpkm.group", gene = "name.y", xlab = "CRISPRi CTR",
+                       ylab = "CRISPRi MT2_Mm",
+                       my.color=c("grey50", "grey50", "grey50", "grey50"),
+                       title = paste0("maternal (e2C):", nrow(maternal_gene)),
+                       label.up = paste0(nrow(maternal_gene_e2c[which(maternal_gene_e2c$ec2_DESeq_rpkm.group == "up-regulated"),])),
+                       label.down = paste0(nrow(maternal_gene_e2c[which(maternal_gene_e2c$ec2_DESeq_rpkm.group == "down-regulated"),])),
+                       #genes4Label = c("Zscan4c", "Zfp352", "Fundc1", "Ddit4l", "Obox3", "Obox6"),
+                       FC.line = foldchange)
+
+ggScatterplot(majorZGA_l2c, x = "logCTR", y = "logMT2Mm",
+                       group = "c2_DESeq_rpkm.group", gene = "name.y", xlab = "CRISPRi CTR",
+                       ylab = "CRISPRi MT2_Mm",
+                       title = paste0("major ZGA (l2C):", nrow(majorZGA)),
+                       label.up = paste0(nrow(majorZGA_l2c[which(majorZGA_l2c$c2_DESeq_rpkm.group == "up-regulated"),])),
+                       label.down = paste0(nrow(majorZGA_l2c[which(majorZGA_l2c$c2_DESeq_rpkm.group == "down-regulated"),])),
+                       #genes4Label = c("Zscan4c", "Zfp352", "Fundc1", "Ddit4l", "Obox3", "Obox6"),
+                       FC.line = foldchange)
+
+
+ggScatterplot(maternal_gene_l2c, x = "logCTR", y = "logMT2Mm",
+                       group = "c2_DESeq_rpkm.group", gene = "name.y", xlab = "CRISPRi CTR",
+                       ylab = "CRISPRi MT2_Mm",
+                       title = paste0("maternal_gene (l2C):", nrow(maternal_gene)),
+                       label.up = paste0(nrow(maternal_gene_l2c[which(maternal_gene_l2c$c2_DESeq_rpkm.group == "up-regulated"),])),
+                       label.down = paste0(nrow(maternal_gene_l2c[which(maternal_gene_l2c$c2_DESeq_rpkm.group == "down-regulated"),])),
+                       #genes4Label = c("Zscan4c", "Zfp352", "Fundc1", "Ddit4l", "Obox3", "Obox6"),
+                       FC.line = foldchange)
+dev.off()
+```
+
+## Obox analyses
+```{r input Obox data}
+Obox_sampleName <- c("RNA_WT_e2c_rep1", "RNA_WT_e2c_rep2",
+                      "RNA_mzKO_e2c_rep1", "RNA_mzKO_e2c_rep2",
+                      "RNA_WT_l2c_rep1", "RNA_WT_l2c_rep2", 
+                      "RNA_WT_l2c_rep3", "RNA_mzKO_l2c_rep1",
+                      "RNA_mzKO_l2c_rep2", "RNA_mzKO_l2c_rep3")
+Obox_simpleName <- c("Obox_WT_e2c_1", "Obox_WT_e2c_2",
+                     "Obox_mzKO_e2c_1", "Obox_mzKO_e2c_2",
+                     "Obox_WT_l2c_1", "Obox_WT_l2c_2", "Obox_WT_l2c_3",
+                     "Obox_mzKO_l2c_1", "Obox_mzKO_l2c_2", "Obox_mzKO_l2c_3")
+
+Obox_counts <- inputTEcountfiles(Obox_sampleName, paste0(Obox_simpleName, ".count"), 
+                            countDataPath = "./R_input/Obox_FPKM_TEcount/")
+row.names(Obox_counts) <- Obox_counts$id
+
+Obox_fpkm <- inputStringTieRPKMfiles(Obox_sampleName, paste0(Obox_simpleName, ".rpkm"),
+                                RPKMDataPath = "./R_input/Obox_FPKM_TEcount/")
+write.csv(Obox_fpkm, "./R_output/230820_Obox_fpkm.csv", quote = F, row.names = F)
+```
+
+### DEG identification
+```{r DEG identification}
+foldchange = 2
+suppressMessages(
+  Obox_e2c_DESeq <- countsToDEseq2FDR(counts = Obox_counts[, c("Obox_WT_e2c_1.count", "Obox_WT_e2c_2.count",
+                                                     "Obox_mzKO_e2c_1.count", "Obox_mzKO_e2c_2.count")], 
+                                 CGroup = 2, TGroup = 2)
+)
+
+suppressMessages(
+  Obox_l2c_DESeq <- countsToDEseq2FDR(counts = Obox_counts[, c( "Obox_WT_l2c_1.count", "Obox_WT_l2c_2.count",
+                                                     "Obox_WT_l2c_3.count", 
+                                                     "Obox_mzKO_l2c_1.count", "Obox_mzKO_l2c_2.count",
+                                                     "Obox_mzKO_l2c_3.count")], 
+                                 CGroup = 3, TGroup = 3)
+)
+
+#classify DEGs 
+Obox_e2c_DESeq_rpkm <- merge(Obox_e2c_DESeq[, c("id",
+                                      "Obox_WT_e2c_1.count", "Obox_WT_e2c_2.count",
+                                      "Obox_mzKO_e2c_1.count", "Obox_mzKO_e2c_2.count",
+                                      "log2FoldChange", "padj")],
+                        Obox_fpkm[, c("id", "name", 
+                                 "Obox_WT_e2c_1.rpkm", "Obox_WT_e2c_2.rpkm", 
+                                 "Obox_mzKO_e2c_1.rpkm", "Obox_mzKO_e2c_2.rpkm")],
+                        by = "id"
+                        )
+
+Obox_l2c_DESeq_rpkm <- merge(Obox_l2c_DESeq[, c("id", 
+                                    "Obox_WT_l2c_1.count", "Obox_WT_l2c_2.count",
+                                    "Obox_WT_l2c_3.count", "Obox_mzKO_l2c_1.count",
+                                    "Obox_mzKO_l2c_2.count", 
+                                    "Obox_mzKO_l2c_3.count",
+                                    "log2FoldChange", "padj")],
+                       Obox_fpkm[, c("id", "name", 
+                                "Obox_WT_l2c_1.rpkm", "Obox_WT_l2c_2.rpkm",
+                                "Obox_WT_l2c_3.rpkm", "Obox_mzKO_l2c_1.rpkm", "Obox_mzKO_l2c_2.rpkm",
+                                "Obox_mzKO_l2c_3.rpkm")],
+                       by = "id")
+
+Obox_e2c_DESeq_rpkm$padj[is.na(Obox_e2c_DESeq_rpkm$padj)] <- 1
+Obox_l2c_DESeq_rpkm$padj[is.na(Obox_l2c_DESeq_rpkm$padj)] <- 1
+
+Obox_e2c_DESeq_rpkm.group <- classifyDEG(
+                            Obox_e2c_DESeq_rpkm,
+                            ctr.rpkm = c("Obox_WT_e2c_1.rpkm", "Obox_WT_e2c_2.rpkm"),
+                            trt.rpkm = c("Obox_mzKO_e2c_1.rpkm", "Obox_mzKO_e2c_2.rpkm"),
+                            FDR.col = "padj", log2FC.col = "log2FoldChange",
+                            RPKM = 1, log2FC = log2(foldchange), FDR = 0.05)
+
+#table(Obox_e2c_DESeq_rpkm.group)
+
+Obox_l2c_DESeq_rpkm.group <- classifyDEG(Obox_l2c_DESeq_rpkm,
+                            ctr.rpkm = c("Obox_WT_l2c_1.rpkm", "Obox_WT_l2c_2.rpkm", "Obox_WT_l2c_3.rpkm"),
+                            trt.rpkm = c("Obox_mzKO_l2c_1.rpkm", "Obox_mzKO_l2c_2.rpkm", "Obox_mzKO_l2c_3.rpkm"),
+                            FDR.col = "padj", log2FC.col = "log2FoldChange",
+                            RPKM = 1, log2FC = log2(foldchange), FDR = 0.05)
+#table(Obox_l2c_DESeq_rpkm.group)
+
+Obox_e2c_DESeq_rpkm <- cbind(Obox_e2c_DESeq_rpkm, Obox_e2c_DESeq_rpkm.group)
+Obox_l2c_DESeq_rpkm <- cbind(Obox_l2c_DESeq_rpkm, Obox_l2c_DESeq_rpkm.group)
+
+Obox_e2c_DESeq_rpkm.up <- Obox_e2c_DESeq_rpkm[Obox_e2c_DESeq_rpkm.group == "up-regulated",]
+Obox_e2c_DESeq_rpkm.down <- Obox_e2c_DESeq_rpkm[Obox_e2c_DESeq_rpkm.group == "down-regulated",]
+Obox_e2c_DESeq_rpkm.detectable <- Obox_e2c_DESeq_rpkm[Obox_e2c_DESeq_rpkm.group != "low_expression_level",]
+
+Obox_l2c_DESeq_rpkm.up <- Obox_l2c_DESeq_rpkm[Obox_l2c_DESeq_rpkm.group == "up-regulated",]
+Obox_l2c_DESeq_rpkm.down <- Obox_l2c_DESeq_rpkm[Obox_l2c_DESeq_rpkm.group == "down-regulated",]
+Obox_l2c_DESeq_rpkm.detectable <- Obox_l2c_DESeq_rpkm[Obox_l2c_DESeq_rpkm.group != "low_expression_level",]
+
+nrow(Obox_e2c_DESeq_rpkm.up) #2
+nrow(Obox_e2c_DESeq_rpkm.down) #416
+nrow(Obox_e2c_DESeq_rpkm.detectable) #12662
+
+nrow(Obox_l2c_DESeq_rpkm.up) #1782
+nrow(Obox_l2c_DESeq_rpkm.down) #2421
+nrow(Obox_l2c_DESeq_rpkm.detectable) #15402
+
+Obox_e2c_DESeq_rpkm$log2WT <- log2(
+  (Obox_e2c_DESeq_rpkm$Obox_WT_e2c_1.count + Obox_e2c_DESeq_rpkm$Obox_WT_e2c_2.count) / 2 + 1
+)
+
+Obox_e2c_DESeq_rpkm$log2mzKO <- log2(
+  (Obox_e2c_DESeq_rpkm$Obox_mzKO_e2c_1.count + Obox_e2c_DESeq_rpkm$Obox_mzKO_e2c_2.count) /2 + 1
+)
+
+Obox_e2c_DESeq_rpkm.up.label <- paste0("Up-regulated:\n", nrow(Obox_e2c_DESeq_rpkm.up))
+Obox_e2c_DESeq_rpkm.down.label <- paste0("Down-regulated:\n", nrow(Obox_e2c_DESeq_rpkm.down))
+
+Obox_l2c_DESeq_rpkm$log2WT <- log2(
+  (Obox_l2c_DESeq_rpkm$Obox_WT_l2c_1.count + Obox_l2c_DESeq_rpkm$Obox_WT_l2c_2.count + Obox_l2c_DESeq_rpkm$Obox_WT_l2c_3.count) / 3 + 1
+)
+
+Obox_l2c_DESeq_rpkm$log2mzKO <- log2(
+  (Obox_l2c_DESeq_rpkm$Obox_mzKO_l2c_1.count + Obox_l2c_DESeq_rpkm$Obox_mzKO_l2c_2.count + Obox_l2c_DESeq_rpkm$Obox_mzKO_l2c_3.count) / 3 + 1
+)
+
+
+Obox_l2c_DESeq_rpkm.up.label <- paste0("Up-regulated:\n", nrow(Obox_l2c_DESeq_rpkm.up))
+Obox_l2c_DESeq_rpkm.down.label <- paste0("Down-regulated:\n", nrow(Obox_l2c_DESeq_rpkm.down))
+
+pdf("./figures/230820_Obox_genes_DE_scatterplot.pdf", width = 6, height = 5)
+ggScatterplot(Obox_e2c_DESeq_rpkm, x = "log2WT", y = "log2mzKO",
+                       group = "Obox_e2c_DESeq_rpkm.group", gene = "name", xlab = "Obox WT",
+                       ylab = "Obox mzKO",
+                       title = "Obox (genes)(e2C)",
+                       label.up = Obox_e2c_DESeq_rpkm.up.label,
+                       label.down = Obox_e2c_DESeq_rpkm.down.label,
+                       genes4Label = c("Zfp352", "Zfp54", "Gm8994", "Fundc1", "Ddit4l", "Gm11517"),
+                       FC.line = foldchange)
+
+ggScatterplot(Obox_l2c_DESeq_rpkm, x = "log2WT", y = "log2mzKO",
+                       group = "Obox_l2c_DESeq_rpkm.group", gene = "name", xlab = "Obox WT",
+                       ylab = "Obox mzKO",
+                       title = "Obox (genes)(l2C)",
+                       label.up = Obox_l2c_DESeq_rpkm.up.label,
+                       label.down = Obox_l2c_DESeq_rpkm.down.label,
+                       genes4Label = c("Gm11517", "Gm3139", "Rnf11", "Spic", "Npl", "Hipk1"),
+                       FC.line = foldchange)
+dev.off()
+```
+### MT2_Mm, MERVL-int expression in Obox data
+```{r barplot4repeats}
+suppressMessages(library(ggplot2))
+suppressMessages(library(reshape2))
+suppressMessages(library(tidyr))
+suppressMessages(library(cowplot))
+suppressMessages(library(pheatmap))
+
+Obox_e2c_repeats <- Obox_e2c_DESeq[grep(":", Obox_e2c_DESeq$id),]
+Obox_l2c_repeats <- Obox_l2c_DESeq[grep(":", Obox_l2c_DESeq$id),]
+
+Obox_e2c_MT2Mm <- Obox_e2c_repeats[which(Obox_e2c_repeats$id %in% c("MT2_Mm:ERVL:LTR", "MERVL-int:ERVL:LTR",
+                                                                    "MT2C_Mm:ERVL:LTR", "MERVL_2A-int:ERVL:LTR",
+                                                                    "MER89:ERV1:LTR")),
+                         c("id","log2FoldChange")]
+
+Obox_l2c_MT2Mm <- Obox_l2c_repeats[which(Obox_l2c_repeats$id %in% c("MT2_Mm:ERVL:LTR", "MERVL-int:ERVL:LTR",
+                                                                    "MT2C_Mm:ERVL:LTR", "MERVL_2A-int:ERVL:LTR",
+                                                                    "MER89:ERV1:LTR")),
+                        c("id","log2FoldChange")]
+
+pdf("./figures/230821_Obox_repeat_heatmap.pdf", height = 6, width = 5)
+pheatmap(as.matrix(Obox_e2c_MT2Mm[, "log2FoldChange"], row.names = Obox_e2c_MT2Mm$id), cluster_rows = F, cluster_cols = F,
+         color = colorRampPalette(rev(c("white", "blue")))(100), 
+         breaks = seq(-5, 0, by = 0.05), show_rownames = T, )
+pheatmap(as.matrix(Obox_l2c_MT2Mm[, "log2FoldChange"], row.names = Obox_l2c_MT2Mm$id), cluster_rows = F, cluster_cols = F,
+         color = colorRampPalette(rev(c("white", "blue")))(100), 
+         breaks = seq(-5, 0, by = 0.05), show_rownames = T)
+dev.off()
+```
+
+### Obox DEGs overlap with ZGA
+```{r obox & ZGA}
+nrow(minorZGA) #717
+nrow(majorZGA) #1989
+
+minorZGA_Obox_e2c <- left_join(minorZGA, Obox_e2c_DESeq_rpkm, by = "id")
+nrow(minorZGA_Obox_e2c) #717
+table(minorZGA_Obox_e2c$Obox_e2c_DESeq_rpkm.group)  
+#down-regulated low_expression_level        similar_level 
+#                 193                   39                  392  
+
+majorZGA_Obox_l2c <- left_join(majorZGA, Obox_l2c_DESeq_rpkm, by = "id")
+nrow(majorZGA_Obox_l2c)  #1989
+table(majorZGA_Obox_l2c$Obox_l2c_DESeq_rpkm.group)
+#down-regulated low_expression_level        similar_level         up-regulated 
+#                 829                   72                  885                   48 
+```
+
+### Obox and MT2_Mmi affected ZGA genes
+```{r Obox, MT2_Mmi, ZGA}
+suppressMessages(library(VennDiagram))
+suppressMessages(library(ggsci))
+minorZGA_venn <- venn.diagram(x = list(
+                      "minor_ZGA" = unique(minorZGA$id),
+                      "Obox KO down" = unique(Obox_e2c_DESeq_rpkm.down$id),
+                      "MT2_Mmi down" = unique(e2c_RNA.down$id)
+                      ),
+                      filename = NULL,
+                           main="minorZGA",
+                            resolution = 300,
+                           #fill=ggsci::pal_futurama(3),
+                           width = 800,height = 800,
+                           euler.d = TRUE, cex=2,
+                           cat.cex=0.8,scaled = TRUE,
+                           offset=0.5, lwd=1,margin=0)
+grid.newpage()
+grid.draw(minorZGA_venn)
+
+majorZGA_venn <- venn.diagram(x = list(
+                      "major_ZGA" = unique(majorZGA$id),
+                      "Obox KO down" = unique(Obox_l2c_DESeq_rpkm.down$id),
+                      "MT2_Mmi down" = unique(c2_RNA.down$id)
+                      ),
+                      filename = NULL,
+                           main="majorZGA",
+                            resolution = 300,
+                           #fill=ggsci::pal_futurama(3),
+                           width = 800,height = 800,
+                           euler.d = TRUE, cex=2,
+                           cat.cex=0.8,scaled = TRUE,
+                           offset=0.5, lwd=1,margin=0)
+grid.newpage()
+grid.draw(majorZGA_venn)
+
+## a venn diagram with proportions
+suppressMessages(library("eulerr"))
+minor_venn <- euler(c(minorZGA = 499,
+                      Obox_ko = 174,
+                      MT2_Mmi = 56,
+                      "minorZGA&Obox_ko" = 117,
+                      "minorZGA&MT2_Mmi" = 25,
+                      "Obox_ko&MT2_Mmi" = 49,
+                      "minorZGA&Obox_ko&MT2_Mmi"=76))
+
+major_venn <- euler(c(majorZGA = 1074,
+                      Obox_ko = 1520,
+                      MT2_Mmi = 202,
+                      "majorZGA&Obox_ko" = 718,
+                      "majorZGA&MT2_Mmi" = 86,
+                      "Obox_ko&MT2_Mmi" = 72,
+                      "majorZGA&Obox_ko&MT2_Mmi"=111))
+pdf("./figures/230821_ZGA_OboxKO_MT2_Mmi_venn.pdf", width = 5, height = 5)
+plot(minor_venn, key = TRUE, counts = TRUE)
+plot(major_venn, key = TRUE, counts = TRUE)
+dev.off()
+```
