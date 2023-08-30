@@ -19,3 +19,9 @@
 ### "230829_main3_CRISPRi_total_RNAseq_analyses.Rmd"
 
   R notebook for RNA-seq QC, differential gene/repeat expression analyses
+
+### "230829_main4_DEGs_relations_to_dCas9_ChIP.Rmd"
+
+  R notebook for analyzing distances between DEGs and targeted repeats
+
+
