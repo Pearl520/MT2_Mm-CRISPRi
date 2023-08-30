@@ -1,0 +1,361 @@
+---
+title: "230821 TEchimeric_analyses"
+author: "Zhiyuan (ZY) Chen"
+date: "`r format(Sys.time(), '%B %e, %Y')`"
+output: 
+  html_notebook:
+    theme: paper 
+    toc: yes
+---
+
+## input data
+### input RNA expression
+```{r input our data}
+suppressMessages(library(readxl))
+suppressMessages(library(stringr))
+suppressMessages(library(ggplot2))
+suppressMessages(library(cowplot))
+suppressMessages(library(tidyr))
+suppressMessages(library(dplyr))
+suppressMessages(library(VennDiagram))
+suppressMessages(library(ggsci))
+
+source("./utils.R")
+e2c_RNA <- read.csv("./R_output/230815_MT2_Mmi_e2C_genes_DE_analyses.csv", header = T)
+l2c_RNA <- read.csv("./R_output/230815_MT2_Mmi_2C_genes_DE_analyses.csv", header = T)
+fpkm <- read.csv("./R_output/230820_MT2_Mmi_fpkm.csv", header = T)
+zhang_fpkm <- read.csv("./R_output/230821_zhang_fpkm.csv", header = T)
+
+#for zhang counts, average counts of two replicates 
+zhang_fpkm$MII <- round( (zhang_fpkm$MII_1.rpkm + zhang_fpkm$MII_2.rpkm) / 2)
+zhang_fpkm$cell1 <- round( (zhang_fpkm$total_1c_1.rpkm + zhang_fpkm$total_1c_2.rpkm) / 2)
+zhang_fpkm$ecell2 <- round( (zhang_fpkm$total_e2c_1.rpkm + zhang_fpkm$total_e2c_2.rpkm) / 2)
+zhang_fpkm$cell2 <- round( (zhang_fpkm$total_2c_1.rpkm + zhang_fpkm$total_2c_2.rpkm) / 2)
+zhang_fpkm$cell4 <- round( (zhang_fpkm$total_4c_1.rpkm + zhang_fpkm$total_4c_2.rpkm) / 2)
+zhang_fpkm$morula <- round( (zhang_fpkm$total_mor_1.rpkm + zhang_fpkm$total_mor_2.rpkm) / 2)
+zhang_fpkm$BL <- round ( (zhang_fpkm$total_BL_1.rpkm + zhang_fpkm$total_BL_2.rpkm) / 2)
+zhang_fpkm_updated <- zhang_fpkm[, c("id", "MII", "cell1", "cell2", "cell4", "morula", "BL")]
+
+gene_type <- read.table("/Volumes/ZYChenlab/Zhiyuan/genomes_annotations/mm10/annotations/gencode.vM25.id.type.txt", 
+                        sep = "\t", header = F)
+colnames(gene_type) <- c("id", "type")
+```
+
+### input chimeric genes and filter
+```{r input new TE chimeric}
+te <- read.table("./R_input/TEchimeric/all_samples_processed_junctions_cleaned.txt",
+                          header = T)
+dim(te) #12749 20
+
+#only keep te_chimeric junctions with >= 2 reads in at least 2 samples
+te <- te[rowSums(te[c(14:25)] >= 2) >= 2,]
+nrow(te) #7642
+colnames(te)[2] <- "id"
+
+#merge with rpkm to include gene name
+id_name <- fpkm[, c("id", "name")]
+
+#merge by gene_jd
+te <- left_join(te, id_name, by = "id")
+
+#only focus on TE as promoters/tss
+te_tss <- te[grep("promoter", te$junction_type),]
+nrow(te_tss) #3366
+
+#for genes that may have multiple TE-junctions, choose the one with most reads at 2C
+#and remove genes with 0 reads at 2C
+te_tss$uniq_2c <- te_tss$total_2c_rep1_uniq + te_tss$total_2c_rep2_uniq
+te_tss_filter <- te_tss %>% 
+  group_by(name) %>%
+  filter(uniq_2c == max(uniq_2c)) %>%
+  filter(uniq_2c != 0)
+
+nrow(te_tss) #3366
+nrow(te_tss_filter) #1712
+
+# length(te_tss_filter$name) == length(unique(te_tss_filter$name))
+# te_tss_filter$name[duplicated(te_tss_filter$name)]
+
+#only keep necessary columns to combine with public data
+te_tss <- te_tss_filter[, c(
+  "info", #chr:###-###
+  "id", #gene_id
+  "name", #gene name
+  "junction_type", #promoter. internal, or 3'end
+  "start_te_repName", #te name
+  "start_te_repFamily", #te family
+  "start_te_repClass", #te class
+  "end_te_repName", 
+  "end_te_repFamily",
+  "end_te_repClass"
+  )]
+```
+
+### input public TE chimeric gene and filter
+```{r clean-up public data}
+#known chimeric transcripts
+xue <- read_xlsx("./R_input/TEchimeric/Modzelewski_H3_tableS3_1-s2.0-S0092867421011041-mmc3.xlsx", sheet = "Mouse Xue et al. 2013")
+deng <- read_xlsx("./R_input/TEchimeric/Modzelewski_H3_tableS3_1-s2.0-S0092867421011041-mmc3.xlsx", sheet = "Mouse Deng et al. 2014")
+
+#re-name some their columns
+xue$info <- paste(xue$`Chromosomal location of retrotransposon:gene junction`, 
+                  xue$`Retrotransposon:gene junction start`, 
+                  xue$`Retrotransposon:gene junction end`, 
+                  sep = ":")
+colnames(xue)[2] <- "name"
+colnames(xue)[13] <- "junction_type"
+colnames(xue)[6] <- "start_te_repName"
+colnames(xue)[7] <- "start_te_repFamily"
+colnames(xue)[8] <- "start_te_repClass"
+colnames(xue)[9] <- "end_te_repName"
+colnames(xue)[10] <- "end_te_repFamily"
+colnames(xue)[11] <- "end_te_repClass"
+
+deng$info <- paste(deng$`Chromosomal location of retrotransposon:gene junction`,
+                   deng$`Retrotransposon:gene junction start`,
+                   deng$`Retrotransposon:gene junction end`,
+                   sep = ":")
+colnames(deng)[2] <- "name"
+colnames(deng)[13] <- "junction_type"
+colnames(deng)[6] <- "start_te_repName"
+colnames(deng)[7] <- "start_te_repFamily"
+colnames(deng)[8] <- "start_te_repClass"
+colnames(deng)[9] <- "end_te_repName"
+colnames(deng)[10] <- "end_te_repFamily"
+colnames(deng)[11] <- "end_te_repClass"
+
+#focus on retrotransposon:gene junction at promoters
+xue_tss <- xue[grep("promoter", xue$junction_type),]
+deng_tss <- deng[grep("promoter", deng$junction_type),]
+
+#for genes that may have multiple TE-junctions, choose the one with most reads at 2C
+xue_tss$c2 <- rowMeans(xue_tss[, c(29:31)])
+xue_tss_filtered <- xue_tss %>% 
+  group_by(name) %>%
+  filter(c2 == max(c2)) %>%
+  filter(c2 != 0)
+nrow(xue_tss) #847
+nrow(xue_tss_filtered) #492
+
+#double check wether names are unique
+# length(xue_tss_filtered$name) == length(unique(xue_tss_filtered$name))
+# xue_tss_filtered$name[duplicated(xue_tss_filtered$name)]
+
+deng_tss$c2 <- rowMeans(deng_tss[, c(29:66)])
+deng_tss_filtered <- deng_tss %>%
+  group_by(name) %>%
+  filter(c2 == max(c2)) %>%
+  filter(c2 != 0)
+nrow(deng_tss) #1837
+nrow(deng_tss_filtered) #963
+# deng_tss_filtered$name[duplicated(deng_tss_filtered$name)]
+
+#only keep necessary columns
+xue_tss <- xue_tss_filtered[, c(41, 2, 13, 6:11)]
+deng_tss <- deng_tss_filtered[, c(184, 2, 13, 6:11)]
+```
+
+### combine 3 datasets
+```{r merge all 3 datasets}
+#Add ensembl ID to deng and xue datasets
+deng_tss_tmp <- merge(deng_tss, id_name, by = "name")
+deng_tss <- deng_tss_tmp[, c(2, 10, 1, 3:9)]
+head(deng_tss)
+xue_tss_tmp <- merge(xue_tss, id_name, by = "name")
+xue_tss <- xue_tss_tmp[, c(2, 10, 1, 3:9)]
+
+#combine all 3 datasets
+all_te <- rbind(deng_tss, xue_tss, as.data.frame(te_tss))
+nrow(all_te) #3102
+all_te <- all_te[!duplicated(all_te),]
+nrow(all_te) #2759
+```
+
+## MT2 elements
+```{r retrieve MT2 elements}
+#focus on a few MT2 family, combind start_te and end_te group
+subfamilyOfinterest <- c("MT2_Mm", "MT2C_Mm", "MTA_Mm", "MT2B1", "MT2B", "MT2B2")
+
+MT2_promoter_start <- all_te[which(all_te$start_te_repName %in% subfamilyOfinterest),
+                             c("info", "id", "name", "junction_type", "start_te_repName")]
+MT2_promoter_end <- all_te[which(all_te$end_te_repName %in% subfamilyOfinterest),
+                             c("info", "id", "name", "junction_type", "end_te_repName")]
+colnames(MT2_promoter_start)[5] <- "repeat"
+colnames(MT2_promoter_end)[5] <- "repeat"
+
+MT2_promoter <- unique(rbind(MT2_promoter_start, MT2_promoter_end))
+nrow(MT2_promoter) #645
+
+#merge with fpkm
+MT2_promoter <- left_join(MT2_promoter, zhang_fpkm[, c(1, 17:23)], by = "id")
+
+#merge with e2c and l2c DEGs
+MT2_promoter <- left_join(MT2_promoter, e2c_RNA, by = "id")
+MT2_promoter <- left_join(MT2_promoter, l2c_RNA, by = "id")
+
+length(unique(MT2_promoter$id)) #581
+nrow(MT2_promoter) #645
+```
+
+
+```{r box_plot}
+MT2_promoter_e2c <- MT2_promoter[-grep("low_expression_level",
+                                       MT2_promoter$ec2_DESeq_rpkm.group), ]
+MT2_promoter_l2c <- MT2_promoter[-grep("low_expression_level",
+                                       MT2_promoter$c2_DESeq_rpkm.group),]
+#remove NA
+MT2_promoter_e2c <- na.omit(MT2_promoter_e2c)
+MT2_promoter_l2c <- na.omit(MT2_promoter_l2c)
+nrow(MT2_promoter_e2c) #519 
+nrow(MT2_promoter_l2c) #537
+
+#to count # of repeats, keep unique id only
+MT2_promoter_e2c <- MT2_promoter_e2c[!duplicated(MT2_promoter_e2c$id), ]
+MT2_promoter_l2c <- MT2_promoter_l2c[!duplicated(MT2_promoter_l2c$id), ]
+nrow(MT2_promoter_e2c) #460
+nrow(MT2_promoter_l2c) #475
+table(MT2_promoter_e2c$`repeat`)
+# MT2_Mm    MT2B   MT2B1   MT2B2 MT2C_Mm  MTA_Mm 
+#    123      24      38      38      52     185
+table(MT2_promoter_l2c$`repeat`)
+#MT2_Mm    MT2B   MT2B1   MT2B2 MT2C_Mm  MTA_Mm 
+#    136      26      39      41      71     162
+
+#box plot
+pdf("./figures/230822_TE_chimeric_boxplot.pdf", height = 6, width = 6)
+ggplot(MT2_promoter_e2c, aes(x = `repeat`, y = log2FoldChange.x)) +
+  #geom_violin(width = 1.2, fill = "grey") +
+  ylim(-5, 5) + 
+  geom_hline(yintercept= 0, color = "black") + 
+  geom_hline(yintercept = log2(3), linetype = "dashed", color = "red") +
+  geom_hline(yintercept = -log2(3), linetype = "dashed", color = "red") +
+  geom_boxplot(width = 0.6, color = "black", alpha = 0.2, outlier.color = NA) +
+  scale_x_discrete(limits = c("MT2_Mm","MT2C_Mm", "MT2B1", "MT2B2", "MT2B", "MTA_Mm"),
+                    labels = c("MT2_Mm\n(n=123)", "MT2C_Mm\n(n=52)", 
+                               "MT2B1\n(n=38)", "MT2B2\n(n=38)","MT2B\n(n=24)",
+                               "MTA_Mm\n(n=185)")) +
+  theme_cowplot(16) +
+  theme(axis.title.x = element_blank()) +
+  ggtitle("e2c_chimeric")
+ggplot(MT2_promoter_l2c, aes(x = `repeat`, y = log2FoldChange.y)) +
+  #geom_violin(width = 1.2, fill = "grey") +
+  ylim(-5, 5) + 
+  geom_hline(yintercept= 0, color = "black") + 
+  geom_hline(yintercept = log2(3), linetype = "dashed", color = "red") +
+  geom_hline(yintercept = -log2(3), linetype = "dashed", color = "red") +
+  geom_boxplot(width = 0.6, color = "black", alpha = 0.2, outlier.color = NA) +
+  scale_x_discrete(limits = c("MT2_Mm","MT2C_Mm", "MT2B1", "MT2B2", "MT2B", "MTA_Mm"),
+                    labels = c("MT2_Mm\n(n=136)", "MT2C_Mm\n(n=71)", 
+                               "MT2B1\n(n=39)", "MT2B2\n(n=41)","MT2B\n(n=26)",
+                               "MTA_Mm\n(n=162)")) +
+  theme_cowplot(16) +
+  theme(axis.title.x = element_blank()) +
+  ggtitle("l2c_chimeric")
+dev.off()
+
+#scatter plot
+
+# #scatter plot for MT2_Mm/mT2C_Mm
+# nrow(MT2_promoter_e2c[which(
+#   MT2_promoter_e2c$`repeat` == "MT2_Mm" &
+#   MT2_promoter_e2c$ec2_DESeq_rpkm.group == "down-regulated"),]) #57 our of 123
+# nrow(MT2_promoter_l2c[which(
+#   MT2_promoter_l2c$`repeat` == "MT2_Mm" &
+#   MT2_promoter_l2c$c2_DESeq_rpkm.group == "down-regulated"),]) #94 out of 136
+# 
+# nrow(MT2_promoter_e2c[which(
+#   MT2_promoter_e2c$`repeat` == "MT2C_Mm" &
+#   MT2_promoter_e2c$ec2_DESeq_rpkm.group == "down-regulated"),]) #11 our of 52
+# nrow(MT2_promoter_l2c[which(
+#   MT2_promoter_l2c$`repeat` == "MT2C_Mm" &
+#   MT2_promoter_l2c$c2_DESeq_rpkm.group == "down-regulated"),]) #33 out of 71
+# 
+# 
+MT2_e2c <- MT2_promoter_e2c[which(MT2_promoter_e2c$`repeat` == "MT2_Mm" | 
+                                  MT2_promoter_e2c$`repeat` == "MT2C_Mm"),]
+table(MT2_e2c$ec2_DESeq_rpkm.group)
+#down-regulated  similar_level
+#            68             107
+MT2_l2c <- MT2_promoter_l2c[which(MT2_promoter_l2c$`repeat` == "MT2_Mm" |
+                                  MT2_promoter_l2c$`repeat` == "MT2C_Mm"),]
+table(MT2_l2c$c2_DESeq_rpkm.group)
+#down-regulated  similar_level
+#            127             80
+write.table(MT2_e2c, file = "./R_output/230829_MT2Mm_MT2CMm_e2C_chimeric.csv", 
+            quote = F, sep = ",", row.names = F)
+write.table(MT2_l2c, file = "./R_output/230829_MT2Mm_MT2CMm_l2C_chimeric.csv", 
+            quote = F, sep = ",", row.names = F)
+
+df4boxplot_MT2_e2c <- gather(log2(MT2_e2c[, c(13:16)]+1), 
+                             key = "sample", value = "count")
+df4boxplot_MT2_l2c <- gather(log2(MT2_l2c[, c(25:32)]+1),
+                             key = "sample", value = "count")
+
+#get p value here
+wilcox.test(df4boxplot_MT2_e2c[which(df4boxplot_MT2_e2c$sample == "CTRi_e2c_2.count"), c("count")],
+            df4boxplot_MT2_e2c[which(df4boxplot_MT2_e2c$sample == "MT2_Mmi_e2c_1.count"), c("count")],
+            alternative = "two.sided")$p.value #1.96e-06
+
+wilcox.test(df4boxplot_MT2_l2c[which(df4boxplot_MT2_l2c$sample == "CTRi_2c_3.count"), c("count")],
+            df4boxplot_MT2_l2c[which(df4boxplot_MT2_l2c$sample == "MT2_Mmi_2c_1.count"), c("count")],
+            alternative = "two.sided")$p.value
+
+pdf("./figures/230823_TE_chimeric_boxplot_by_counts.pdf", height = 6, width = 6)
+ggplot(df4boxplot_MT2_e2c, aes(x = sample, y = count)) + 
+  geom_boxplot(outlier.color = NA) + theme_cowplot(16) +
+  ylim(0,15) + ylab("exprression level") +
+  xlab(NULL) +
+  theme(axis.text.x = element_text(angle = 30, vjust = 0.9, hjust=0.9)) +
+  ggtitle("MT2Mm_MT2CMm_chimeric_genes(E2C)") 
+ggplot(df4boxplot_MT2_l2c, aes(x = sample, y = count)) + 
+  geom_boxplot(outlier.color = NA) + theme_cowplot(16) +
+  ylim(0,15) + ylab("exprression level") +
+  xlab(NULL) +
+  theme(axis.text.x = element_text(angle = 30, vjust = 0.9, hjust=0.9)) +
+  ggtitle("MT2Mm_MT2CMm_chimeric_genes(L2C)") +
+  scale_x_discrete(limits = c("noninj_2c_1.count", "noninj_2c_2.count", 
+                              "CTRi_2c_1.count", "CTRi_2c_2.count",
+                              "CTRi_2c_3.count", "MT2_Mmi_2c_1.count",
+                              "MT2_Mmi_2c_2.count", "MT2_Mmi_2c_3.count")) 
+dev.off() 
+  
+# suppressMessages(require(pheatmap))
+# pdf("./figures/230823_E2C_L2C_TE_chimeric_genes.pdf", width = 6, height = 6)
+# # pheatmap(as.matrix(log2(MT2_e2c[, c(13:16)]+1)), 
+# #          scale = "row", treeheight_row = 0, treeheight_col = 0,
+# #          cluster_cols = F, cluster_rows = T, show_rownames = F)
+# pheatmap(as.matrix(log2(MT2_e2c[, c(13:16)]+1)), 
+#          scale = "row", treeheight_row = 0, treeheight_col = 0,
+#          cluster_cols = F, cluster_rows = T, show_rownames = F,
+#          color = colorRampPalette(rev(c("red","white", "blue")))(400), 
+#          breaks = seq(-2, 2, by = 0.01))
+# pheatmap(as.matrix(log2(MT2_l2c[, c(25:32)]+1)), 
+#          scale = "row", treeheight_row = 0, treeheight_col = 0,
+#          cluster_cols = F, cluster_rows = T, show_rownames = F,
+#          color = colorRampPalette(rev(c("red","white", "blue")))(400), 
+#          breaks = seq(-2, 2, by = 0.01))
+# dev.off()
+
+# pdf("./R_output/figures/230804_MT2Mm_TEchimeric_FC3.pdf", width = 4, height = 4)
+# ggScatterplot(MT2Mm_promoter_new_2c, x = "log2CTR", y = "log2MT2Mm",
+#                        group = "c2_DESeq_rpkm.group2", gene = "name", xlab = "CRISPRi CTR",
+#                        ylab = "CRISPRi MT2_Mm",
+#                        title = "MT2_Mm_chimeric",
+#                        label.up = paste0("Up-regulated: 0"),
+#                        label.down = paste0("Down-regulated: 81 (71.6%)"),
+#                        genes4Label = c("Snrpc", "Zfp51", "Pemt"),
+#                        FC.line = 3)
+# dev.off()
+# 
+# 
+# MT2_promoter_new_2c <- left_join(MT2_promoter_new_2c[, 
+#                                                      c("id", "name", 
+#                                                        "CTRi_2c_1.rpkm", "CTRi_2c_2.rpkm", "CTRi_2c_3.rpkm",
+#                                                        "MT2_Mmi_2c_1.rpkm", "MT2_Mmi_2c_2.rpkm", "MT2_Mmi_2c_3.rpkm",
+#                                                        "log2FoldChange", "padj", "c2_DESeq_rpkm.group2", "repeat")],
+#                                  zhang_fpkm_updated, by = "id")
+# MT2_promoter_new_2c <- left_join(MT2_promoter_new_2c, gene_type, 
+#                                  by = "id")
+# write.table(MT2_promoter_new_2c[which(MT2_promoter_new_2c$`repeat` == "MT2_Mm"),], 
+#             "./R_output/tables/230804_MT2Mm_chimeric.csv", sep = ",", row.names = F)
+```
