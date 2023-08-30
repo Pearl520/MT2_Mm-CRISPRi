@@ -24,4 +24,12 @@
 
   R notebook for analyzing distances between DEGs and targeted repeats
 
+### "230829_main5_TE_chimeric_analyses.Rmd"
+
+  R notebook for LTR-chimeric analyses
+
+### "230829_main6_Obox_analyses.Rmd"
+
+  R notebook for minor ZGA, major ZGA, maternal gne, and Obox-related analyses
+  
 
